@@ -1,4 +1,4 @@
-<div class="flex h-[calc(100vh-4rem)] flex-col" x-data="{ dragId: null }">
+<div class="-mb-8 flex h-[calc(100dvh-6rem)] min-h-0 flex-col overflow-hidden" x-data="{ dragId: null }">
 
     {{-- Header --}}
     <div class="flex flex-wrap items-center gap-4 border-b border-neutral-200 bg-white px-4 py-3 dark:border-neutral-800 dark:bg-neutral-900">
