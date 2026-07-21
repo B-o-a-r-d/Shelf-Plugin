@@ -55,6 +55,18 @@ return [
     'import_failed' => 'L\'import de « :name » a échoué ; le fichier a été ignoré.',
     'export_md' => 'Exporter (.md)',
 
+    'search_placeholder' => 'Rechercher dans l\'étagère…',
+    'search_no_results' => 'Aucun résultat.',
+
+    'activity_created' => 'a créé « :name »',
+    'activity_renamed' => 'a renommé « :from » en « :name »',
+    'activity_moved' => 'a déplacé « :name »',
+    'activity_trashed' => 'a mis « :name » à la corbeille',
+    'activity_restored' => 'a restauré « :name »',
+    'activity_deleted' => 'a supprimé définitivement « :name »',
+    'activity_note_edited' => 'a modifié la note « :name »',
+    'activity_file_uploaded' => 'a ajouté le fichier « :name »',
+
     'setting_revisions_keep' => 'Révisions conservées par note',
     'setting_revisions_keep_help' => 'Nombre d\'instantanés automatiques gardés pour chaque note.',
 

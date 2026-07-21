@@ -14,8 +14,10 @@ use Board\PluginShelf\Models\ShelfNoteRevision;
 use Board\PluginShelf\ShelfPlugin;
 use Board\PluginShelf\Support\LineDiff;
 use Board\PluginShelf\Support\QuotaExceededException;
+use Board\PluginShelf\Support\ShelfActivity;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
@@ -52,6 +54,9 @@ class ShelfShow extends Component
     public bool $canManage = false;
 
     public ?int $selectedNodeId = null;
+
+    /** Tree search query ('' = the tree; 2+ chars = results list). */
+    public string $search = '';
 
     /** Inline creation state: the type being created and its target folder. */
     public ?string $creatingType = null;
@@ -117,6 +122,7 @@ class ShelfShow extends Component
         $this->showTrash = false;
         $this->showHistory = false;
         $this->viewingRevisionId = null;
+        $this->search = '';
     }
 
     public function startCreating(string $type, ?int $parentId = null): void
@@ -161,6 +167,8 @@ class ShelfShow extends Component
             'created_by' => Auth::id(),
         ]);
 
+        ShelfActivity::log($this->board, 'shelf.node_created', $node);
+
         $this->cancelCreating();
         $this->selectedNodeId = $node->id;
         $this->touchTree();
@@ -193,7 +201,11 @@ class ShelfShow extends Component
 
         $this->validate(['renameValue' => 'required|string|max:255'], [], ['renameValue' => __('shelf::shelf.name')]);
 
-        $this->node($this->renamingNodeId)->update(['name' => trim($this->renameValue)]);
+        $node = $this->node($this->renamingNodeId);
+        $from = $node->name;
+        $node->update(['name' => trim($this->renameValue)]);
+
+        ShelfActivity::log($this->board, 'shelf.node_renamed', $node, ['from' => $from]);
 
         $this->cancelRenaming();
         $this->touchTree();
@@ -230,6 +242,8 @@ class ShelfShow extends Component
             'position' => $this->nextPosition($target?->id),
         ]);
 
+        ShelfActivity::log($this->board, 'shelf.node_moved', $node, ['to' => $target?->name]);
+
         $this->touchTree();
     }
 
@@ -239,6 +253,8 @@ class ShelfShow extends Component
 
         $node = $this->node($nodeId);
         $node->update(['archived_at' => now()]);
+
+        ShelfActivity::log($this->board, 'shelf.node_trashed', $node);
 
         // The whole branch disappears from the tree; drop a selection that
         // pointed inside it.
@@ -271,6 +287,8 @@ class ShelfShow extends Component
             'position' => $this->nextPosition($parentId),
         ]);
 
+        ShelfActivity::log($this->board, 'shelf.node_restored', $node);
+
         $this->touchTree();
     }
 
@@ -283,6 +301,8 @@ class ShelfShow extends Component
         if (! $node->isTrashed()) {
             return;
         }
+
+        ShelfActivity::log($this->board, 'shelf.node_deleted', $node);
 
         // Model-by-model so every stored file of the branch is reclaimed.
         $node->deleteSubtree();
@@ -415,6 +435,8 @@ class ShelfShow extends Component
         $path = $upload->storeAs('shelf/'.$this->board->public_id.'/'.$node->public_id, $safeName, 'local');
 
         $node->update(['file_path' => $path]);
+
+        ShelfActivity::log($this->board, 'shelf.file_uploaded', $node);
 
         $used += $size;
     }
@@ -617,15 +639,10 @@ class ShelfShow extends Component
             return ['ok' => false, 'reason' => 'quota'];
         }
 
-        if ($note->exists) {
-            $note->maybeSnapshot(Auth::id(), ShelfPlugin::revisionsKeep());
+        // Log at snapshot cadence (~10 min), not on every debounced autosave.
+        if ($note->persistContent($node, $markdown, Auth::id(), ShelfPlugin::revisionsKeep())) {
+            ShelfActivity::log($this->board, 'shelf.note_edited', $node);
         }
-
-        $note->markdown = $markdown;
-        $note->version = $currentVersion + 1;
-        $note->save();
-
-        $node->update(['size' => $note->weightBytes()]);
 
         return ['ok' => true, 'version' => $note->version];
     }
@@ -718,6 +735,21 @@ class ShelfShow extends Component
 
         $active = $nodes->filter(fn (ShelfNode $node): bool => ! $node->isTrashed());
 
+        // Reachable = active AND on a fully-active path from the roots (a
+        // trashed folder hides its whole branch from tree and search alike).
+        $childrenMap = $active->groupBy('parent_id');
+        $reachable = collect();
+        $stack = ($childrenMap->get(null) ?? collect())->all();
+
+        while ($stack !== []) {
+            $node = array_pop($stack);
+            $reachable->push($node);
+
+            foreach ($childrenMap->get($node->id, collect()) as $child) {
+                $stack[] = $child;
+            }
+        }
+
         $selected = $this->selectedNodeId !== null ? $active->firstWhere('id', $this->selectedNodeId) : null;
 
         if ($selected === null) {
@@ -752,7 +784,8 @@ class ShelfShow extends Component
         }
 
         return view('shelf::show', [
-            'childrenByParent' => $active->groupBy('parent_id'),
+            'childrenByParent' => $childrenMap,
+            'searchResults' => $this->searchResults($reachable),
             'selectedNode' => $selected,
             'trashedNodes' => $nodes->filter(fn (ShelfNode $node): bool => $node->isTrashed())->sortByDesc('archived_at'),
             'usedBytes' => $usedBytes,
@@ -788,6 +821,54 @@ class ShelfShow extends Component
             $bytes >= 1024 => round($bytes / 1024).' '.__('shelf::shelf.kb'),
             default => $bytes.' '.__('shelf::shelf.bytes'),
         };
+    }
+
+    /**
+     * Full-text-ish search over the reachable tree: node names in memory,
+     * note contents through a case-insensitive LIKE (portable across
+     * pgsql/sqlite), with a ±60-char snippet around the first content match.
+     *
+     * @param  Collection<int, ShelfNode>  $reachable
+     * @return array<int, array{node: ShelfNode, snippet: string|null}>
+     */
+    private function searchResults($reachable): array
+    {
+        $query = trim($this->search);
+
+        if (mb_strlen($query) < 2) {
+            return [];
+        }
+
+        $results = [];
+
+        foreach ($reachable as $node) {
+            if (mb_stripos($node->name, $query) !== false) {
+                $results[$node->id] = ['node' => $node, 'snippet' => null];
+            }
+        }
+
+        $noteIds = $reachable
+            ->filter(fn (ShelfNode $node): bool => $node->type === ShelfNode::TYPE_NOTE)
+            ->pluck('id');
+
+        if ($noteIds->isNotEmpty()) {
+            $matches = ShelfNote::whereIn('node_id', $noteIds)
+                ->whereRaw('LOWER(markdown) LIKE ?', ['%'.mb_strtolower($query).'%'])
+                ->get(['node_id', 'markdown']);
+
+            foreach ($matches as $match) {
+                $node = $reachable->firstWhere('id', $match->node_id);
+                $position = mb_stripos((string) $match->markdown, $query);
+                $start = max(0, $position - 60);
+                $snippet = ($start > 0 ? '…' : '')
+                    .trim(mb_substr((string) $match->markdown, $start, 120 + mb_strlen($query)))
+                    .'…';
+
+                $results[$node->id] = ['node' => $node, 'snippet' => $results[$node->id]['snippet'] ?? $snippet];
+            }
+        }
+
+        return array_slice(array_values($results), 0, 30);
     }
 
     /**

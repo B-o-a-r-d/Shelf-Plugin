@@ -43,19 +43,21 @@ class ShelfNote extends Model
      * than the revision interval (Trilium-style periodic checkpoints), then
      * prune beyond the configured keep count. Call BEFORE overwriting.
      */
-    public function maybeSnapshot(?int $userId, int $keep): void
+    public function maybeSnapshot(?int $userId, int $keep): bool
     {
         if (trim((string) $this->markdown) === '') {
-            return;
+            return false;
         }
 
         $latest = $this->revisions()->first();
 
         if ($latest !== null && $latest->created_at->gt(now()->subMinutes(self::REVISION_INTERVAL_MINUTES))) {
-            return;
+            return false;
         }
 
         $this->snapshot($userId, $keep);
+
+        return true;
     }
 
     /**
@@ -87,5 +89,23 @@ class ShelfNote extends Model
     public function weightBytes(): int
     {
         return strlen((string) $this->markdown) + (int) $this->revisions()->sum('size');
+    }
+
+    /**
+     * Persist new content the standard way — periodic revision snapshot of the
+     * previous state, version bump, node size refresh. Callers handle their
+     * own concurrency/quota policy first (Livewire autosave, MCP tool).
+     */
+    public function persistContent(ShelfNode $node, string $markdown, ?int $userId, int $keep): bool
+    {
+        $snapshotted = $this->exists && $this->maybeSnapshot($userId, $keep);
+
+        $this->markdown = $markdown;
+        $this->version = ($this->exists ? $this->version : 0) + 1;
+        $this->save();
+
+        $node->update(['size' => $this->weightBytes()]);
+
+        return $snapshotted;
     }
 }

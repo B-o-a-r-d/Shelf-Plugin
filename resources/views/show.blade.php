@@ -156,6 +156,14 @@
 
         {{-- Tree --}}
         <aside class="flex w-72 shrink-0 flex-col border-r border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/60">
+            {{-- Search --}}
+            <div class="relative border-b border-neutral-200 px-2 py-1.5 dark:border-neutral-800">
+                <x-phosphor-magnifying-glass class="pointer-events-none absolute left-4 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
+                <input type="search" wire:model.live.debounce.300ms="search" wire:keydown.escape="$set('search', '')"
+                       placeholder="{{ __('shelf::shelf.search_placeholder') }}"
+                       class="w-full rounded-lg border border-neutral-200 bg-white py-1 pl-7 pr-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-800">
+            </div>
+
             @if ($canWrite)
                 <div class="flex items-center gap-1 border-b border-neutral-200 px-2 py-1.5 dark:border-neutral-800">
                     <button type="button" wire:click="startCreating('folder')" class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-200 dark:text-neutral-300 dark:hover:bg-neutral-800">
@@ -174,17 +182,36 @@
                      @drop.prevent="if (dragId !== null) { $wire.moveNode(dragId, null); dragId = null; }"
                  @endif
             >
-                @if ($creatingType !== null && $creatingParentId === null)
-                    @include('shelf::partials.create-form')
-                @endif
-
-                @forelse ($childrenByParent->get(null, collect()) as $node)
-                    @include('shelf::partials.node', ['node' => $node, 'depth' => 0])
-                @empty
-                    @if ($creatingType === null)
-                        <p class="px-2 py-4 text-center text-xs text-neutral-400 dark:text-neutral-500">{{ __('shelf::shelf.tree_empty') }}</p>
+                @if (mb_strlen(trim($search)) >= 2)
+                    {{-- Search results replace the tree while a query is typed --}}
+                    @forelse ($searchResults as $result)
+                        <button type="button" wire:click="selectNode({{ $result['node']->id }})" wire:key="shelf-search-{{ $result['node']->id }}"
+                                class="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-200/70 dark:text-neutral-200 dark:hover:bg-neutral-800">
+                            <x-dynamic-component :component="'phosphor-'.$result['node']->iconName()"
+                                @class(['mt-0.5 h-4 w-4 shrink-0', 'text-amber-500' => $result['node']->isFolder(), 'text-indigo-500' => $result['node']->type === \Board\PluginShelf\Models\ShelfNode::TYPE_NOTE, 'text-neutral-400' => $result['node']->type === \Board\PluginShelf\Models\ShelfNode::TYPE_FILE]) />
+                            <span class="min-w-0 flex-1">
+                                <span class="block truncate">{{ $result['node']->name }}</span>
+                                @if ($result['snippet'] !== null)
+                                    <span class="block truncate text-xs text-neutral-400 dark:text-neutral-500">{{ $result['snippet'] }}</span>
+                                @endif
+                            </span>
+                        </button>
+                    @empty
+                        <p class="px-2 py-4 text-center text-xs text-neutral-400 dark:text-neutral-500">{{ __('shelf::shelf.search_no_results') }}</p>
+                    @endforelse
+                @else
+                    @if ($creatingType !== null && $creatingParentId === null)
+                        @include('shelf::partials.create-form')
                     @endif
-                @endforelse
+
+                    @forelse ($childrenByParent->get(null, collect()) as $node)
+                        @include('shelf::partials.node', ['node' => $node, 'depth' => 0])
+                    @empty
+                        @if ($creatingType === null)
+                            <p class="px-2 py-4 text-center text-xs text-neutral-400 dark:text-neutral-500">{{ __('shelf::shelf.tree_empty') }}</p>
+                        @endif
+                    @endforelse
+                @endif
             </div>
         </aside>
 

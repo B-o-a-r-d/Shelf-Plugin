@@ -55,6 +55,18 @@ return [
     'import_failed' => 'Importing ":name" failed; the file was skipped.',
     'export_md' => 'Export (.md)',
 
+    'search_placeholder' => 'Search the shelf…',
+    'search_no_results' => 'No results.',
+
+    'activity_created' => 'created ":name"',
+    'activity_renamed' => 'renamed ":from" to ":name"',
+    'activity_moved' => 'moved ":name"',
+    'activity_trashed' => 'moved ":name" to the trash',
+    'activity_restored' => 'restored ":name"',
+    'activity_deleted' => 'permanently deleted ":name"',
+    'activity_note_edited' => 'edited the note ":name"',
+    'activity_file_uploaded' => 'added the file ":name"',
+
     'setting_revisions_keep' => 'Revisions kept per note',
     'setting_revisions_keep_help' => 'Number of automatic snapshots kept for each note.',
 

@@ -2,10 +2,17 @@
 
 namespace Board\PluginShelf;
 
+use Board\PluginSdk\Contracts\DefinesActivities;
 use Board\PluginSdk\Contracts\Plugin;
 use Board\PluginSdk\Contracts\ProvidesBoardType;
+use Board\PluginSdk\Contracts\ProvidesMcpTools;
 use Board\PluginSdk\Contracts\ProvidesSettings;
 use Board\PluginSdk\Support\PluginSettings;
+use Board\PluginShelf\Mcp\ShelfCreateNodeTool;
+use Board\PluginShelf\Mcp\ShelfMoveNodeTool;
+use Board\PluginShelf\Mcp\ShelfReadNoteTool;
+use Board\PluginShelf\Mcp\ShelfTreeTool;
+use Board\PluginShelf\Mcp\ShelfWriteNoteTool;
 
 /**
  * Shelf — the document shelf: a plugin-contributed BOARD TYPE. A Shelf board
@@ -13,7 +20,7 @@ use Board\PluginSdk\Support\PluginSettings;
  * notes and files, under a storage quota. The host handles membership, roles,
  * pinning and cross-workspace moves like any other board.
  */
-class ShelfPlugin implements Plugin, ProvidesBoardType, ProvidesSettings
+class ShelfPlugin implements DefinesActivities, Plugin, ProvidesBoardType, ProvidesMcpTools, ProvidesSettings
 {
     /** Instance default when the admin has not configured a quota (in GB). */
     public const DEFAULT_QUOTA_GB = 5;
@@ -111,6 +118,66 @@ class ShelfPlugin implements Plugin, ProvidesBoardType, ProvidesSettings
                 'help' => __('shelf::shelf.setting_revisions_keep_help'),
             ],
         ];
+    }
+
+    // --- ProvidesMcpTools (the Trilium-like, drivable by an AI agent) -----------
+
+    /**
+     * @return array<int, class-string>
+     */
+    public function mcpTools(): array
+    {
+        return [
+            ShelfTreeTool::class,
+            ShelfReadNoteTool::class,
+            ShelfWriteNoteTool::class,
+            ShelfCreateNodeTool::class,
+            ShelfMoveNodeTool::class,
+        ];
+    }
+
+    // --- DefinesActivities -------------------------------------------------------
+
+    /**
+     * @return array{key: string, label: string}
+     */
+    public function activityTab(): array
+    {
+        return ['key' => 'shelf', 'label' => 'Shelf'];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function activityTypes(): array
+    {
+        return [
+            'shelf.node_created',
+            'shelf.node_renamed',
+            'shelf.node_moved',
+            'shelf.node_trashed',
+            'shelf.node_restored',
+            'shelf.node_deleted',
+            'shelf.note_edited',
+            'shelf.file_uploaded',
+        ];
+    }
+
+    public function describeActivity(string $type, array $properties): ?string
+    {
+        $name = (string) ($properties['name'] ?? '');
+
+        return match ($type) {
+            'shelf.node_created' => __('shelf::shelf.activity_created', ['name' => $name]),
+            'shelf.node_renamed' => __('shelf::shelf.activity_renamed', ['from' => (string) ($properties['from'] ?? ''), 'name' => $name]),
+            'shelf.node_moved' => __('shelf::shelf.activity_moved', ['name' => $name]),
+            'shelf.node_trashed' => __('shelf::shelf.activity_trashed', ['name' => $name]),
+            'shelf.node_restored' => __('shelf::shelf.activity_restored', ['name' => $name]),
+            'shelf.node_deleted' => __('shelf::shelf.activity_deleted', ['name' => $name]),
+            'shelf.note_edited' => __('shelf::shelf.activity_note_edited', ['name' => $name]),
+            'shelf.file_uploaded' => __('shelf::shelf.activity_file_uploaded', ['name' => $name]),
+            default => null,
+        };
     }
 
     /**

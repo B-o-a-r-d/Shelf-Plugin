@@ -55,6 +55,18 @@ return [
     'import_failed' => 'La importación de «:name» falló; el archivo fue omitido.',
     'export_md' => 'Exportar (.md)',
 
+    'search_placeholder' => 'Buscar en la estantería…',
+    'search_no_results' => 'Sin resultados.',
+
+    'activity_created' => 'creó «:name»',
+    'activity_renamed' => 'renombró «:from» a «:name»',
+    'activity_moved' => 'movió «:name»',
+    'activity_trashed' => 'envió «:name» a la papelera',
+    'activity_restored' => 'restauró «:name»',
+    'activity_deleted' => 'eliminó definitivamente «:name»',
+    'activity_note_edited' => 'editó la nota «:name»',
+    'activity_file_uploaded' => 'añadió el archivo «:name»',
+
     'setting_revisions_keep' => 'Revisiones conservadas por nota',
     'setting_revisions_keep_help' => 'Número de instantáneas automáticas guardadas para cada nota.',
 
