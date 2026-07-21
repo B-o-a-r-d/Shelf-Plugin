@@ -1,6 +1,6 @@
 {
     "name": "board/plugin-shelf",
-    "description": "Shelf — a document workspace for Board: file-explorer tree, markdown notes (TipTap) and file storage with a quota.",
+    "description": "Shelf — a document board type for Board: file-explorer tree, collaborative markdown notes (TipTap + Yjs) and file storage under a quota.",
     "type": "library",
     "license": "MIT",
     "keywords": ["board", "kanban", "shelf", "documents", "notes", "markdown"],
@@ -23,12 +23,6 @@
             ]
         }
     },
-    "repositories": [
-        {
-            "type": "path",
-            "url": "../Plugin-SDK"
-        }
-    ],
     "minimum-stability": "stable",
     "prefer-stable": true,
     "config": {
