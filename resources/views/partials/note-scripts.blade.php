@@ -1,6 +1,16 @@
 @assets
 <script>
 (() => {
+    // Shelf's TipTap extension set, namespaced in the host registry: other
+    // plugins register their own key and never interfere — an editor only
+    // gets the sets it explicitly asks for (extensionsFor).
+    const registerExtensions = () => window.boardTiptap?.register('shelf', ({ tables }) => [
+        tables.Table.configure({ resizable: false }),
+        tables.TableRow,
+        tables.TableHeader,
+        tables.TableCell,
+    ])
+
     // The TipTap instance lives on the DOM element (NOT the Alpine object):
     // Alpine's reactive Proxy breaks ProseMirror's transaction identity checks.
     const register = () => window.Alpine.data('shelfNoteEditor', (opts) => ({
@@ -17,11 +27,12 @@
         _server: null,
 
         async init() {
-            if (! window.boardTiptapLoader) {
+            if (! window.boardTiptap) {
                 return
             }
 
-            const { Editor, StarterKit, Markdown } = await window.boardTiptapLoader()
+            const { Editor, StarterKit, Markdown } = await window.boardTiptap.load()
+            const extra = await window.boardTiptap.extensionsFor('shelf')
             const mount = this.$root.querySelector('.js-note-mount')
 
             this.$root._tiptap = new Editor({
@@ -30,6 +41,7 @@
                 extensions: [
                     StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
                     Markdown.configure({ html: false, linkify: true, breaks: true, transformPastedText: true }),
+                    ...extra,
                 ],
                 content: opts.markdown,
                 editorProps: {
@@ -253,6 +265,7 @@
                 case 'quote': chain = chain.toggleBlockquote(); break
                 case 'code': chain = chain.toggleCodeBlock(); break
                 case 'hr': chain = chain.setHorizontalRule(); break
+                case 'table': chain = chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }); break
             }
 
             chain.run()
@@ -272,6 +285,8 @@
             this.$root._tiptap = null
         },
     }))
+
+    registerExtensions()
 
     if (window.Alpine) {
         register()

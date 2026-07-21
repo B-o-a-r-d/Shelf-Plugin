@@ -32,6 +32,7 @@
                  ['command' => 'ordered', 'label' => __('shelf::shelf.slash_ordered'), 'hint' => '1.'],
                  ['command' => 'quote', 'label' => __('shelf::shelf.slash_quote'), 'hint' => '>'],
                  ['command' => 'code', 'label' => __('shelf::shelf.slash_code'), 'hint' => '```'],
+                 ['command' => 'table', 'label' => __('shelf::shelf.slash_table'), 'hint' => '|-|'],
                  ['command' => 'hr', 'label' => __('shelf::shelf.slash_hr'), 'hint' => '---'],
              ],
          ]))">
@@ -92,6 +93,20 @@
                 <button type="button" @click="run('toggleBlockquote')" :class="isActive('blockquote') && 'bg-neutral-200 dark:bg-neutral-700'" class="{{ $tbBtn }}" title="{{ __('shelf::shelf.slash_quote') }}"><x-phosphor-quotes class="h-4 w-4" /></button>
                 <button type="button" @click="run('toggleCodeBlock')" :class="isActive('codeBlock') && 'bg-neutral-200 dark:bg-neutral-700'" class="{{ $tbBtn }}" title="{{ __('shelf::shelf.slash_code') }}"><x-phosphor-code class="h-4 w-4" /></button>
                 <button type="button" @click="toggleLink()" :class="isActive('link') && 'bg-neutral-200 dark:bg-neutral-700'" class="{{ $tbBtn }}" title="{{ __('shelf::shelf.tb_link') }}"><x-phosphor-link class="h-4 w-4" /></button>
+                <button type="button" @click="run('insertTable', { rows: 3, cols: 3, withHeaderRow: true })" :class="isActive('table') && 'bg-neutral-200 dark:bg-neutral-700'" class="{{ $tbBtn }}" title="{{ __('shelf::shelf.slash_table') }}"><x-phosphor-table class="h-4 w-4" /></button>
+
+                {{-- Table controls, only while the caret is inside a table --}}
+                <template x-if="isActive('table')">
+                    <span class="flex items-center gap-0.5">
+                        <span class="mx-1 h-5 w-px bg-neutral-200 dark:bg-neutral-700"></span>
+                        <button type="button" @click="run('addRowAfter')" class="{{ $tbBtn }}" title="{{ __('shelf::shelf.tb_table_add_row') }}"><x-phosphor-rows class="h-4 w-4" /></button>
+                        <button type="button" @click="run('addColumnAfter')" class="{{ $tbBtn }}" title="{{ __('shelf::shelf.tb_table_add_col') }}"><x-phosphor-columns class="h-4 w-4" /></button>
+                        <button type="button" @click="run('deleteRow')" class="{{ $tbBtn }} text-red-500" title="{{ __('shelf::shelf.tb_table_del_row') }}"><x-phosphor-rows class="h-4 w-4 rotate-180" /></button>
+                        <button type="button" @click="run('deleteColumn')" class="{{ $tbBtn }} text-red-500" title="{{ __('shelf::shelf.tb_table_del_col') }}"><x-phosphor-columns class="h-4 w-4 rotate-180" /></button>
+                        <button type="button" @click="run('deleteTable')" class="{{ $tbBtn }} text-red-500" title="{{ __('shelf::shelf.tb_table_delete') }}"><x-phosphor-trash class="h-4 w-4" /></button>
+                    </span>
+                </template>
+
                 <span class="ml-auto hidden text-[11px] text-neutral-400 sm:block dark:text-neutral-500">{{ __('shelf::shelf.slash_hint') }}</span>
             </div>
         @endif
