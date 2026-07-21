@@ -18,6 +18,9 @@ class ShelfPlugin implements Plugin, ProvidesBoardType, ProvidesSettings
     /** Instance default when the admin has not configured a quota (in GB). */
     public const DEFAULT_QUOTA_GB = 5;
 
+    /** Instance default number of note revisions kept per note. */
+    public const DEFAULT_REVISIONS_KEEP = 20;
+
     public static function key(): string
     {
         return 'shelf';
@@ -88,15 +91,36 @@ class ShelfPlugin implements Plugin, ProvidesBoardType, ProvidesSettings
      */
     public function settings(): array
     {
-        return [[
-            'key' => 'default_quota_gb',
-            'label' => __('shelf::shelf.setting_default_quota'),
-            'type' => 'number',
-            'required' => false,
-            'default' => self::DEFAULT_QUOTA_GB,
-            'placeholder' => (string) self::DEFAULT_QUOTA_GB,
-            'help' => __('shelf::shelf.setting_default_quota_help'),
-        ]];
+        return [
+            [
+                'key' => 'default_quota_gb',
+                'label' => __('shelf::shelf.setting_default_quota'),
+                'type' => 'number',
+                'required' => false,
+                'default' => self::DEFAULT_QUOTA_GB,
+                'placeholder' => (string) self::DEFAULT_QUOTA_GB,
+                'help' => __('shelf::shelf.setting_default_quota_help'),
+            ],
+            [
+                'key' => 'revisions_keep',
+                'label' => __('shelf::shelf.setting_revisions_keep'),
+                'type' => 'number',
+                'required' => false,
+                'default' => self::DEFAULT_REVISIONS_KEEP,
+                'placeholder' => (string) self::DEFAULT_REVISIONS_KEEP,
+                'help' => __('shelf::shelf.setting_revisions_keep_help'),
+            ],
+        ];
+    }
+
+    /**
+     * How many revisions to keep per note (admin-configured, else built-in).
+     */
+    public static function revisionsKeep(): int
+    {
+        $configured = (int) PluginSettings::for(self::key())->get('revisions_keep', self::DEFAULT_REVISIONS_KEEP);
+
+        return $configured > 0 ? $configured : self::DEFAULT_REVISIONS_KEEP;
     }
 
     /**

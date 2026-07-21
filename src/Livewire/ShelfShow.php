@@ -6,6 +6,10 @@ use App\Models\Board;
 use Board\PluginShelf\Events\ShelfTreeUpdated;
 use Board\PluginShelf\Models\ShelfBoard;
 use Board\PluginShelf\Models\ShelfNode;
+use Board\PluginShelf\Models\ShelfNote;
+use Board\PluginShelf\Models\ShelfNoteRevision;
+use Board\PluginShelf\ShelfPlugin;
+use Board\PluginShelf\Support\LineDiff;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
@@ -45,6 +49,11 @@ class ShelfShow extends Component
     /** Quota override form value in GB ('' = inherit the instance default). */
     public string $quotaInput = '';
 
+    /** Revision history panel of the selected note. */
+    public bool $showHistory = false;
+
+    public ?int $viewingRevisionId = null;
+
     public function mount(Board $board): void
     {
         Gate::authorize('view', $board);
@@ -75,6 +84,8 @@ class ShelfShow extends Component
     {
         $this->selectedNodeId = $this->node($nodeId)->id;
         $this->showTrash = false;
+        $this->showHistory = false;
+        $this->viewingRevisionId = null;
     }
 
     public function startCreating(string $type, ?int $parentId = null): void
@@ -247,6 +258,119 @@ class ShelfShow extends Component
         $this->touchTree();
     }
 
+    // --- Notes (markdown, optimistic versioning) ---------------------------------
+
+    /**
+     * Autosave endpoint of the note editor. Optimistic concurrency: the client
+     * sends the version it loaded; a mismatch means someone saved meanwhile and
+     * the caller gets the server state back instead of overwriting it.
+     *
+     * @return array<string, mixed>
+     */
+    public function saveNote(int $nodeId, string $markdown, int $baseVersion): array
+    {
+        abort_unless($this->canWrite, 403);
+
+        $node = $this->node($nodeId);
+
+        abort_unless($node->type === ShelfNode::TYPE_NOTE && ! $node->isTrashed(), 422);
+
+        $note = ShelfNote::firstOrNew(['node_id' => $node->id]);
+        $currentVersion = $note->exists ? $note->version : 0;
+
+        if ($baseVersion !== $currentVersion) {
+            return [
+                'ok' => false,
+                'reason' => 'conflict',
+                'version' => $currentVersion,
+                'markdown' => (string) $note->markdown,
+            ];
+        }
+
+        // Quota: refuse the delta that would tip the board over its cap.
+        $delta = strlen($markdown) - strlen((string) $note->markdown);
+
+        if ($delta > 0 && ShelfNode::usedBytes($this->board) + $delta > ShelfBoard::quotaBytesFor($this->board)) {
+            return ['ok' => false, 'reason' => 'quota'];
+        }
+
+        if ($note->exists) {
+            $note->maybeSnapshot(Auth::id(), ShelfPlugin::revisionsKeep());
+        }
+
+        $note->markdown = $markdown;
+        $note->version = $currentVersion + 1;
+        $note->save();
+
+        $node->update(['size' => $note->weightBytes()]);
+
+        return ['ok' => true, 'version' => $note->version];
+    }
+
+    /**
+     * Server state of a note, for conflict resolution ("Recharger").
+     *
+     * @return array<string, mixed>
+     */
+    public function reloadNote(int $nodeId): array
+    {
+        $node = $this->node($nodeId);
+        $note = ShelfNote::firstWhere('node_id', $node->id);
+
+        return [
+            'markdown' => (string) $note?->markdown,
+            'version' => $note?->version ?? 0,
+        ];
+    }
+
+    // --- Revisions ---------------------------------------------------------------
+
+    public function toggleHistory(): void
+    {
+        $this->showHistory = ! $this->showHistory;
+        $this->viewingRevisionId = null;
+    }
+
+    public function viewRevision(int $revisionId): void
+    {
+        $this->viewingRevisionId = $this->revision($revisionId)->id;
+    }
+
+    public function closeRevision(): void
+    {
+        $this->viewingRevisionId = null;
+    }
+
+    /**
+     * Bring a revision's content back as the current version. The pre-restore
+     * content is snapshotted first, so a restore never loses anything.
+     */
+    public function restoreRevision(int $revisionId): void
+    {
+        abort_unless($this->canWrite, 403);
+
+        $revision = $this->revision($revisionId);
+        $note = $revision->note;
+
+        $note->snapshot(Auth::id(), ShelfPlugin::revisionsKeep());
+
+        $note->markdown = (string) $revision->markdown;
+        $note->version = $note->version + 1;
+        $note->save();
+
+        $note->node->update(['size' => $note->weightBytes()]);
+
+        $this->viewingRevisionId = null;
+        $this->showHistory = false;
+
+        // The editor is wire:ignore — hand it the restored content directly.
+        $this->dispatch('shelf-note-restored',
+            nodeId: $note->node_id,
+            markdown: (string) $note->markdown,
+            version: $note->version,
+        );
+    }
+
     // --- Quota ------------------------------------------------------------------
 
     public function saveQuota(): void
@@ -280,6 +404,30 @@ class ShelfShow extends Component
         $usedBytes = (int) $nodes->sum('size');
         $quotaBytes = ShelfBoard::quotaBytesFor($this->board);
 
+        // Note payload for the (wire:ignore) editor + revision panel data.
+        $note = null;
+        $revisions = collect();
+        $viewingRevision = null;
+        $revisionDiff = [];
+
+        if ($selected?->type === ShelfNode::TYPE_NOTE) {
+            $note = ShelfNote::firstWhere('node_id', $selected->id);
+
+            if ($this->showHistory) {
+                $revisions = $note?->revisions()->with('creator')->get() ?? collect();
+            }
+
+            if ($this->viewingRevisionId !== null) {
+                $viewingRevision = $revisions->firstWhere('id', $this->viewingRevisionId);
+
+                if ($viewingRevision === null) {
+                    $this->viewingRevisionId = null;
+                } else {
+                    $revisionDiff = LineDiff::compute((string) $viewingRevision->markdown, (string) $note?->markdown);
+                }
+            }
+        }
+
         return view('shelf::show', [
             'childrenByParent' => $active->groupBy('parent_id'),
             'selectedNode' => $selected,
@@ -287,6 +435,10 @@ class ShelfShow extends Component
             'usedBytes' => $usedBytes,
             'quotaBytes' => $quotaBytes,
             'usagePercent' => $quotaBytes > 0 ? min(100, (int) round($usedBytes * 100 / $quotaBytes)) : 0,
+            'note' => $note,
+            'revisions' => $revisions,
+            'viewingRevision' => $viewingRevision,
+            'revisionDiff' => $revisionDiff,
         ]);
     }
 
@@ -308,6 +460,15 @@ class ShelfShow extends Component
     private function node(int $nodeId): ShelfNode
     {
         return ShelfNode::where('board_id', $this->board->id)->findOrFail($nodeId);
+    }
+
+    private function revision(int $revisionId): ShelfNoteRevision
+    {
+        $revision = ShelfNoteRevision::with('note.node')->findOrFail($revisionId);
+
+        abort_unless($revision->note?->node?->board_id === $this->board->id, 404);
+
+        return $revision;
     }
 
     private function folder(int $nodeId): ShelfNode

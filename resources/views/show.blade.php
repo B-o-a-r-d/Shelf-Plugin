@@ -92,7 +92,8 @@
         </aside>
 
         {{-- Main panel --}}
-        <main class="min-w-0 flex-1 overflow-y-auto bg-white p-6 dark:bg-neutral-950">
+        @php $noteOpen = ! $showTrash && $selectedNode?->type === \Board\PluginShelf\Models\ShelfNode::TYPE_NOTE; @endphp
+        <main class="min-w-0 flex-1 bg-white dark:bg-neutral-950 {{ $noteOpen ? 'flex flex-col overflow-hidden' : 'overflow-y-auto p-6' }}">
             @if ($showTrash)
                 @include('shelf::partials.trash')
             @elseif ($selectedNode === null)
@@ -125,20 +126,16 @@
                         @endforelse
                     </div>
                 </div>
+            @elseif ($noteOpen)
+                @include('shelf::partials.note')
             @else
                 <div class="mx-auto max-w-3xl">
                     <div class="flex items-center gap-2">
-                        @if ($selectedNode->type === \Board\PluginShelf\Models\ShelfNode::TYPE_NOTE)
-                            <x-phosphor-file-text class="h-6 w-6 text-indigo-500" />
-                        @else
-                            <x-phosphor-file class="h-6 w-6 text-neutral-400" />
-                        @endif
+                        <x-phosphor-file class="h-6 w-6 text-neutral-400" />
                         <h2 class="text-xl font-semibold tracking-tight">{{ $selectedNode->name }}</h2>
                     </div>
                     <div class="mt-6 rounded-2xl border border-dashed border-neutral-300 p-8 text-center dark:border-neutral-700">
-                        <p class="text-sm text-neutral-500 dark:text-neutral-400">
-                            {{ $selectedNode->type === \Board\PluginShelf\Models\ShelfNode::TYPE_NOTE ? __('shelf::shelf.note_editor_soon') : __('shelf::shelf.file_preview_soon') }}
-                        </p>
+                        <p class="text-sm text-neutral-500 dark:text-neutral-400">{{ __('shelf::shelf.file_preview_soon') }}</p>
                     </div>
                 </div>
             @endif
