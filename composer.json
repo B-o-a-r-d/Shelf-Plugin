@@ -1,0 +1,37 @@
+{
+    "name": "board/plugin-shelf",
+    "description": "Shelf — a document workspace for Board: file-explorer tree, markdown notes (TipTap) and file storage with a quota.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["board", "kanban", "shelf", "documents", "notes", "markdown"],
+    "require": {
+        "php": "^8.3",
+        "board/plugin-sdk": "^0.2.8"
+    },
+    "autoload": {
+        "psr-4": {
+            "Board\\PluginShelf\\": "src/"
+        }
+    },
+    "extra": {
+        "board": {
+            "sdk_contract": 1
+        },
+        "laravel": {
+            "providers": [
+                "Board\\PluginShelf\\ShelfServiceProvider"
+            ]
+        }
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../Plugin-SDK"
+        }
+    ],
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "config": {
+        "sort-packages": true
+    }
+}
