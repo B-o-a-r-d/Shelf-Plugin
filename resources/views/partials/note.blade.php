@@ -17,6 +17,7 @@
              'version' => $note?->version ?? 0,
              'canWrite' => $canWrite,
              'userId' => auth()->id(),
+             'userName' => auth()->user()->name,
              'i18n' => [
                  'saving' => __('shelf::shelf.editor_saving'),
                  'saved' => __('shelf::shelf.editor_saved'),

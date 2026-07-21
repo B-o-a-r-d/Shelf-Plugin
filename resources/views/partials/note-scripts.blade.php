@@ -11,39 +11,84 @@
         tables.TableCell,
     ])
 
-    // The TipTap instance lives on the DOM element (NOT the Alpine object):
-    // Alpine's reactive Proxy breaks ProseMirror's transaction identity checks.
+    const COLORS = ['#f97316', '#8b5cf6', '#06b6d4', '#10b981', '#ef4444', '#eab308', '#ec4899', '#3b82f6']
+
+    const b64encode = (u8) => {
+        let s = ''
+        u8.forEach((b) => s += String.fromCharCode(b))
+        return btoa(s)
+    }
+    const b64decode = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0))
+
+    // Reverb caps client events (~10 KB): payloads above the threshold are
+    // split into ordered chunks and reassembled on the other side.
+    const CHUNK = 6000
+
+    // The TipTap/Yjs instances live on the DOM element (NOT the Alpine
+    // object): Alpine's reactive Proxy breaks ProseMirror's and Yjs' identity
+    // checks ("mismatched transaction").
     const register = () => window.Alpine.data('shelfNoteEditor', (opts) => ({
         status: 'idle', // idle | dirty | saving | saved | conflict | quota
         version: opts.version,
         savedAt: null,
         canWrite: opts.canWrite,
         i18n: opts.i18n,
+        collab: false,
         members: [],
         typing: {},
         slash: { open: false, query: '', index: 0, x: 0, y: 0, from: 0 },
         _timer: null,
         _whisperAt: 0,
         _server: null,
+        _lastSavedMd: opts.markdown,
+        _seeded: false,
+        _synced: false,
+        _seeding: false,
+        _chunks: {},
 
         async init() {
             if (! window.boardTiptap) {
                 return
             }
 
-            const { Editor, StarterKit, Markdown } = await window.boardTiptap.load()
+            const mods = await window.boardTiptap.load()
             const extra = await window.boardTiptap.extensionsFor('shelf')
             const mount = this.$root.querySelector('.js-note-mount')
 
-            this.$root._tiptap = new Editor({
+            // Collaborative whenever Echo is up: the CRDT syncs over the
+            // note's presence channel (Reverb whispers) — no dedicated server.
+            this.collab = !! window.Echo
+
+            const extensions = [
+                mods.StarterKit.configure({
+                    heading: { levels: [1, 2, 3] },
+                    ...(this.collab ? { undoRedo: false } : {}),
+                }),
+                mods.Markdown.configure({ html: false, linkify: true, breaks: true, transformPastedText: true }),
+                ...extra,
+            ]
+
+            if (this.collab) {
+                const { Y, Awareness, Collaboration, CollaborationCaret } = mods.collab
+                const ydoc = new Y.Doc()
+                const awareness = new Awareness(ydoc)
+
+                this.$root._y = { ydoc, awareness, mods: mods.collab }
+
+                extensions.push(Collaboration.configure({ document: ydoc }))
+                extensions.push(CollaborationCaret.configure({
+                    provider: { awareness },
+                    user: { name: opts.userName, color: COLORS[opts.userId % COLORS.length] },
+                }))
+            }
+
+            this.$root._tiptap = new mods.Editor({
                 element: mount,
                 editable: this.canWrite,
-                extensions: [
-                    StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
-                    Markdown.configure({ html: false, linkify: true, breaks: true, transformPastedText: true }),
-                    ...extra,
-                ],
-                content: opts.markdown,
+                extensions,
+                // In collab mode content comes from seeding/peer sync — never
+                // from the Editor constructor (it would bypass the CRDT).
+                ...(this.collab ? {} : { content: opts.markdown }),
                 editorProps: {
                     attributes: {
                         class: 'tiptap markdown mx-auto min-h-full max-w-3xl px-6 py-4 text-sm focus:outline-none',
@@ -53,17 +98,24 @@
                 onUpdate: () => this.onUpdate(),
             })
 
-            if (window.Echo) {
-                this._channel = window.Echo.join('shelf-note.' + opts.nodeId)
-                    .here((users) => this.members = users)
-                    .joining((user) => this.members.push(user))
-                    .leaving((user) => this.members = this.members.filter((m) => m.id !== user.id))
-                    .listenForWhisper('editing', (e) => {
-                        this.typing[e.id] = { name: e.name, at: Date.now() }
-                    })
+            if (this.collab) {
+                this.joinCollab()
             }
 
-            // Prune stale "is typing" marks (whispers every 2.5 s, expiry 6 s).
+            window.addEventListener('shelf-note-restored', this._onRestore = (event) => {
+                const detail = event.detail ?? {}
+                if (detail.nodeId !== opts.nodeId) {
+                    return
+                }
+                this._seeding = true
+                this.editor()?.commands.setContent(detail.markdown)
+                this._seeding = false
+                this.version = detail.version
+                this._lastSavedMd = detail.markdown
+                this.markSaved()
+                this.sendJson('shelf-saved', { version: detail.version })
+            })
+
             this._prune = setInterval(() => {
                 const now = Date.now()
                 for (const id of Object.keys(this.typing)) {
@@ -72,17 +124,6 @@
                     }
                 }
             }, 2000)
-
-            window.addEventListener('shelf-note-restored', this._onRestore = (event) => {
-                const detail = event.detail ?? {}
-                if (detail.nodeId !== opts.nodeId) {
-                    return
-                }
-                this.editor()?.commands.setContent(detail.markdown)
-                this.version = detail.version
-                this.status = 'saved'
-                this.savedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            })
         },
 
         editor() {
@@ -99,12 +140,171 @@
                 .map(([, entry]) => entry.name)
         },
 
-        // --- Autosave -------------------------------------------------------
+        markSaved() {
+            this.status = 'saved'
+            this.savedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        },
+
+        // --- Collaboration over the presence channel -------------------------
+
+        joinCollab() {
+            const { ydoc, awareness, mods } = this.$root._y
+
+            const bin = (type, handler) => {
+                this._channel.listenForWhisper(type, (e) => handler(e))
+                this._channel.listenForWhisper(type + '-chunk', (e) => {
+                    const box = (this._chunks[e.id] ??= { head: e.head, parts: [], got: 0 })
+                    if (box.parts[e.seq] === undefined) {
+                        box.parts[e.seq] = e.part
+                        box.got++
+                    }
+                    if (box.got === e.total) {
+                        delete this._chunks[e.id]
+                        handler({ ...box.head, data: box.parts.join('') })
+                    }
+                })
+            }
+
+            this._channel = window.Echo.join('shelf-note.' + opts.nodeId)
+                .here((users) => {
+                    this.members = users
+                    this.startSync()
+                })
+                .joining((user) => this.members.push(user))
+                .leaving((user) => this.members = this.members.filter((m) => m.id !== user.id))
+                .listenForWhisper('editing', (e) => {
+                    this.typing[e.id] = { name: e.name, at: Date.now() }
+                })
+                .listenForWhisper('shelf-sync-req', (e) => this.onSyncRequest(e))
+                .listenForWhisper('shelf-saved', (e) => {
+                    this.version = Math.max(this.version, e.version)
+                    this._lastSavedMd = this.editor()?.storage.markdown.getMarkdown() ?? this._lastSavedMd
+                    if (this.status === 'dirty' || this.status === 'saving') {
+                        this.markSaved()
+                    }
+                })
+
+            bin('shelf-update', (e) => this.applyRemote(e))
+            bin('shelf-reply', (e) => {
+                if (e.to !== opts.userId) {
+                    return
+                }
+                this.applyRemote(e)
+                this._synced = true
+            })
+            bin('shelf-awareness', (e) => mods.applyAwarenessUpdate(awareness, b64decode(e.data), 'remote'))
+
+            ydoc.on('update', (update, origin) => {
+                if (origin !== 'remote') {
+                    this.sendBinary('shelf-update', update)
+                }
+            })
+
+            awareness.on('update', ({ added, updated, removed }, origin) => {
+                if (origin === 'remote') {
+                    return
+                }
+                const ids = added.concat(updated).concat(removed)
+                this.sendBinary('shelf-awareness', mods.encodeAwarenessUpdate(awareness, ids))
+            })
+        },
+
+        startSync() {
+            const { ydoc, mods } = this.$root._y
+            const Y = mods.Y
+
+            if (this.others().length === 0) {
+                this.seed()
+
+                return
+            }
+
+            this.sendJson('shelf-sync-req', { from: opts.userId, sv: b64encode(Y.encodeStateVector(ydoc)) })
+
+            // Nobody answered with state (all peers empty too): the lowest
+            // user id seeds from the stored markdown, everyone else converges.
+            setTimeout(() => {
+                if (this._synced || this._seeded) {
+                    return
+                }
+                const ids = this.members.map((m) => m.id)
+                if (ids.length === 0 || opts.userId === Math.min(...ids)) {
+                    this.seed()
+                }
+            }, 2500)
+        },
+
+        onSyncRequest(e) {
+            if (e.from === opts.userId || (! this._seeded && ! this._synced)) {
+                return
+            }
+
+            const { ydoc, awareness, mods } = this.$root._y
+            const update = mods.Y.encodeStateAsUpdate(ydoc, b64decode(e.sv))
+
+            this.sendBinary('shelf-reply', update, { to: e.from })
+            this.sendBinary('shelf-awareness', mods.encodeAwarenessUpdate(awareness, [awareness.clientID]))
+        },
+
+        applyRemote(e) {
+            const { ydoc, mods } = this.$root._y
+
+            mods.Y.applyUpdate(ydoc, b64decode(e.data), 'remote')
+        },
+
+        seed() {
+            if (this._seeded || this._synced) {
+                return
+            }
+
+            this._seeded = true
+
+            if (opts.markdown) {
+                this._seeding = true
+                this.editor()?.commands.setContent(opts.markdown)
+                this._seeding = false
+            }
+        },
+
+        sendBinary(type, u8, meta = {}) {
+            this.sendJson(type, { ...meta, data: b64encode(u8) })
+        },
+
+        sendJson(type, obj) {
+            if (! this._channel) {
+                return
+            }
+
+            const data = obj.data ?? ''
+
+            if (JSON.stringify(obj).length <= CHUNK + 1500) {
+                this._channel.whisper(type, obj)
+
+                return
+            }
+
+            const head = { ...obj }
+            delete head.data
+            const id = Math.random().toString(36).slice(2)
+            const total = Math.ceil(data.length / CHUNK)
+
+            for (let i = 0; i < total; i++) {
+                this._channel.whisper(type + '-chunk', {
+                    id,
+                    seq: i,
+                    total,
+                    head,
+                    part: data.slice(i * CHUNK, (i + 1) * CHUNK),
+                })
+            }
+        },
+
+        // --- Autosave ---------------------------------------------------------
 
         onUpdate() {
             this.updateSlash()
 
-            if (! this.canWrite || this.status === 'conflict') {
+            if (! this.canWrite || this._seeding || this.status === 'conflict') {
                 return
             }
 
@@ -115,7 +315,7 @@
             const now = Date.now()
             if (this._channel && now - this._whisperAt > 2500) {
                 this._whisperAt = now
-                this._channel.whisper('editing', { id: opts.userId, name: '{{ addslashes(auth()->user()->name) }}' })
+                this._channel.whisper('editing', { id: opts.userId, name: opts.userName })
             }
         },
 
@@ -125,17 +325,40 @@
                 return
             }
 
-            this.status = 'saving'
             const markdown = editor.storage.markdown.getMarkdown()
+
+            // A collaborator already persisted the converged content.
+            if (markdown === this._lastSavedMd) {
+                this.markSaved()
+
+                return
+            }
+
+            this.status = 'saving'
             const result = await this.$wire.saveNote(opts.nodeId, markdown, this.version)
 
             if (result.ok) {
                 this.version = result.version
-                this.status = 'saved'
-                this.savedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                this._lastSavedMd = markdown
+                this.markSaved()
+                this.sendJson('shelf-saved', { version: result.version })
             } else if (result.reason === 'conflict') {
-                this._server = result
-                this.status = 'conflict'
+                if (this.collab && this.others().length > 0) {
+                    // CRDT peers converge on content; just adopt the server
+                    // version and persist the shared truth.
+                    this.version = result.version
+                    if (result.markdown === markdown) {
+                        this._lastSavedMd = markdown
+                        this.markSaved()
+                    } else {
+                        this.status = 'dirty'
+                        clearTimeout(this._timer)
+                        this._timer = setTimeout(() => this.save(), 400)
+                    }
+                } else {
+                    this._server = result
+                    this.status = 'conflict'
+                }
             } else if (result.reason === 'quota') {
                 this.status = 'quota'
             }
@@ -143,11 +366,13 @@
 
         async reload() {
             const server = this._server ?? await this.$wire.reloadNote(opts.nodeId)
+            this._seeding = true
             this.editor()?.commands.setContent(server.markdown)
+            this._seeding = false
             this.version = server.version
+            this._lastSavedMd = server.markdown
             this._server = null
-            this.status = 'saved'
-            this.savedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            this.markSaved()
         },
 
         overwrite() {
@@ -159,7 +384,7 @@
             this.save()
         },
 
-        // --- Toolbar --------------------------------------------------------
+        // --- Toolbar ----------------------------------------------------------
 
         run(command, ...args) {
             this.editor()?.chain().focus()[command](...args).run()
@@ -184,7 +409,7 @@
             }
         },
 
-        // --- Slash commands ---------------------------------------------------
+        // --- Slash commands -----------------------------------------------------
 
         filteredSlash() {
             const query = this.slash.query.toLowerCase()
@@ -276,6 +501,12 @@
             clearTimeout(this._timer)
             clearInterval(this._prune)
             window.removeEventListener('shelf-note-restored', this._onRestore)
+
+            if (this.$root._y) {
+                this.$root._y.awareness.destroy()
+                this.$root._y.ydoc.destroy()
+                this.$root._y = null
+            }
 
             if (window.Echo && this._channel) {
                 window.Echo.leave('shelf-note.' + opts.nodeId)
