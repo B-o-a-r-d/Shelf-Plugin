@@ -14,7 +14,7 @@
                 @php
                     $name = $upload->getClientOriginalName();
                     $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
-                    $convertible = \Board\PluginShelf\Support\Pandoc::convertible($name);
+                    $convertible = in_array($ext, ['md', 'markdown', 'txt'], true);
                     $isZip = $ext === 'zip';
                 @endphp
                 <div class="flex items-center gap-3 rounded-lg border border-neutral-200 px-3 py-2 dark:border-neutral-800" wire:key="shelf-import-{{ $index }}">

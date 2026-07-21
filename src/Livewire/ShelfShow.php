@@ -10,7 +10,6 @@ use Board\PluginShelf\Models\ShelfNote;
 use Board\PluginShelf\Models\ShelfNoteRevision;
 use Board\PluginShelf\ShelfPlugin;
 use Board\PluginShelf\Support\LineDiff;
-use Board\PluginShelf\Support\Pandoc;
 use Board\PluginShelf\Support\QuotaExceededException;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\UploadedFile;
@@ -35,6 +34,12 @@ class ShelfShow extends Component
 
     /** Aligned on the instance-wide upload cap (200 MB), in kilobytes. */
     private const MAX_UPLOAD_KB = 204800;
+
+    /**
+     * Extensions importable as editable notes — text-based only, no external
+     * converter: plugins must never require fiddling with the Docker image.
+     */
+    private const NOTE_EXTENSIONS = ['md', 'markdown', 'txt'];
 
     public Board $board;
 
@@ -285,9 +290,9 @@ class ShelfShow extends Component
 
     /**
      * Entry point of a dropped batch. Plain files are stored directly; as soon
-     * as one upload could become a note (docx/odt/html/rtf with pandoc, md/txt
-     * always) or is a zip archive, the import modal opens for a per-file
-     * choice — convert, unpack, or store as-is.
+     * as one upload could become a note (md/txt) or is a zip archive, the
+     * import modal opens for a per-file choice — convert, unpack, or store
+     * as-is.
      */
     public function saveUploads(): void
     {
@@ -305,12 +310,12 @@ class ShelfShow extends Component
         $needsModal = false;
 
         foreach ($this->uploads as $index => $upload) {
-            $name = $upload->getClientOriginalName();
+            $ext = strtolower(pathinfo($upload->getClientOriginalName(), PATHINFO_EXTENSION));
 
-            if (Pandoc::convertible($name)) {
+            if (in_array($ext, self::NOTE_EXTENSIONS, true)) {
                 $choices[$index] = 'note';
                 $needsModal = true;
-            } elseif (strtolower(pathinfo($name, PATHINFO_EXTENSION)) === 'zip') {
+            } elseif ($ext === 'zip') {
                 $choices[$index] = 'tree';
                 $needsModal = true;
             } else {
@@ -411,19 +416,15 @@ class ShelfShow extends Component
     }
 
     /**
-     * Convert a document into a note node. For real conversions (docx/odt/…)
-     * the original lands as a file node next to the note; already-markdown
-     * and plain-text sources are absorbed entirely.
+     * Absorb a markdown / plain-text upload into an editable note node.
      */
     private function importAsNote(UploadedFile $upload, ?ShelfNode $parent, int &$used, int $quota): void
     {
         $original = $upload->getClientOriginalName();
-        $markdown = Pandoc::toMarkdown($upload->getRealPath(), $original);
+        $markdown = self::readAsUtf8((string) file_get_contents((string) $upload->getRealPath()));
         $bytes = strlen($markdown);
 
-        $keepOriginal = ! in_array(strtolower(pathinfo($original, PATHINFO_EXTENSION)), Pandoc::PLAIN, true);
-
-        if ($used + $bytes + ($keepOriginal ? (int) $upload->getSize() : 0) > $quota) {
+        if ($used + $bytes > $quota) {
             throw new QuotaExceededException($original);
         }
 
@@ -441,10 +442,16 @@ class ShelfShow extends Component
 
         $used += $bytes;
         $this->selectedNodeId = $node->id;
+    }
 
-        if ($keepOriginal) {
-            $this->storeUploadAsFile($upload, $parent, $used, $quota);
-        }
+    /**
+     * Text content with a latin-1 rescue for non-UTF-8 sources.
+     */
+    private static function readAsUtf8(string $content): string
+    {
+        return mb_check_encoding($content, 'UTF-8')
+            ? $content
+            : mb_convert_encoding($content, 'UTF-8', 'ISO-8859-1');
     }
 
     /**
@@ -528,8 +535,8 @@ class ShelfShow extends Component
                     throw new QuotaExceededException($filename);
                 }
 
-                if (in_array(strtolower(pathinfo($filename, PATHINFO_EXTENSION)), Pandoc::PLAIN, true)) {
-                    $markdown = mb_check_encoding($content, 'UTF-8') ? $content : mb_convert_encoding($content, 'UTF-8', 'ISO-8859-1');
+                if (in_array(strtolower(pathinfo($filename, PATHINFO_EXTENSION)), self::NOTE_EXTENSIONS, true)) {
+                    $markdown = self::readAsUtf8($content);
 
                     $node = ShelfNode::create([
                         'board_id' => $this->board->id,
@@ -751,8 +758,6 @@ class ShelfShow extends Component
             'revisions' => $revisions,
             'viewingRevision' => $viewingRevision,
             'revisionDiff' => $revisionDiff,
-            'pandocAvailable' => Pandoc::available(),
-            'pandocPdf' => Pandoc::canExportPdf(),
         ]);
     }
 

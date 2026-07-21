@@ -53,11 +53,8 @@ return [
     'import_as_file' => 'Store as-is',
     'import_confirm' => 'Import',
     'import_running' => 'Importing…',
-    'import_failed' => 'Converting ":name" failed; the file was skipped.',
-    'export' => 'Export',
-    'export_failed' => 'The export failed.',
-    'pandoc_missing' => 'pandoc is not installed on this instance.',
-    'pdf_engine_missing' => 'No PDF engine (LaTeX/wkhtmltopdf) is installed on this instance.',
+    'import_failed' => 'Importing ":name" failed; the file was skipped.',
+    'export_md' => 'Export (.md)',
 
     'setting_revisions_keep' => 'Revisions kept per note',
     'setting_revisions_keep_help' => 'Number of automatic snapshots kept for each note.',

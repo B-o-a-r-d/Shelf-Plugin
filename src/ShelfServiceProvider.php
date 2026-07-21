@@ -32,8 +32,7 @@ class ShelfServiceProvider extends PluginServiceProvider
             ->name('shelf.file');
 
         Route::middleware(['web', 'auth'])
-            ->get('/shelf/export/{node:public_id}/{format}', ShelfExportController::class)
-            ->where('format', 'md|docx|pdf')
+            ->get('/shelf/export/{node:public_id}', ShelfExportController::class)
             ->name('shelf.export');
 
         // The provider boots at runtime (plugin loader), after the host's

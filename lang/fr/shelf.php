@@ -53,11 +53,8 @@ return [
     'import_as_file' => 'Stocker tel quel',
     'import_confirm' => 'Importer',
     'import_running' => 'Import en cours…',
-    'import_failed' => 'La conversion de « :name » a échoué ; le fichier a été ignoré.',
-    'export' => 'Exporter',
-    'export_failed' => 'L\'export a échoué.',
-    'pandoc_missing' => 'pandoc n\'est pas installé sur cette instance.',
-    'pdf_engine_missing' => 'Aucun moteur PDF (LaTeX/wkhtmltopdf) n\'est installé sur cette instance.',
+    'import_failed' => 'L\'import de « :name » a échoué ; le fichier a été ignoré.',
+    'export_md' => 'Exporter (.md)',
 
     'setting_revisions_keep' => 'Révisions conservées par note',
     'setting_revisions_keep_help' => 'Nombre d\'instantanés automatiques gardés pour chaque note.',

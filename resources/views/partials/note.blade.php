@@ -58,40 +58,11 @@
                     <span x-show="status === 'saved' && savedAt !== null" x-text="i18n.saved.replace(':time', savedAt ?? '')"></span>
                 </span>
 
-                {{-- Export menu --}}
-                <div x-data="{ open: false }" class="relative">
-                    <button type="button" @click="open = ! open"
-                            class="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800">
-                        <x-phosphor-export class="h-3.5 w-3.5" /> {{ __('shelf::shelf.export') }}
-                    </button>
-                    <div x-show="open" x-cloak @click.outside="open = false" x-transition.opacity.duration.100ms
-                         class="absolute right-0 z-40 mt-1 w-44 rounded-lg border border-neutral-200 bg-white p-1 text-sm shadow-lg dark:border-neutral-700 dark:bg-neutral-800">
-                        <a href="{{ route('shelf.export', [$selectedNode, 'md']) }}" @click="open = false"
-                           class="flex items-center gap-2 rounded px-2 py-1.5 text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700">
-                            <x-phosphor-file-text class="h-4 w-4" /> Markdown (.md)
-                        </a>
-                        @if ($pandocAvailable)
-                            <a href="{{ route('shelf.export', [$selectedNode, 'docx']) }}" @click="open = false"
-                               class="flex items-center gap-2 rounded px-2 py-1.5 text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700">
-                                <x-phosphor-file-doc class="h-4 w-4" /> Word (.docx)
-                            </a>
-                        @else
-                            <span class="flex cursor-not-allowed items-center gap-2 rounded px-2 py-1.5 text-neutral-400 dark:text-neutral-500" title="{{ __('shelf::shelf.pandoc_missing') }}">
-                                <x-phosphor-file-doc class="h-4 w-4" /> Word (.docx)
-                            </span>
-                        @endif
-                        @if ($pandocPdf)
-                            <a href="{{ route('shelf.export', [$selectedNode, 'pdf']) }}" @click="open = false"
-                               class="flex items-center gap-2 rounded px-2 py-1.5 text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-700">
-                                <x-phosphor-file-pdf class="h-4 w-4" /> PDF
-                            </a>
-                        @else
-                            <span class="flex cursor-not-allowed items-center gap-2 rounded px-2 py-1.5 text-neutral-400 dark:text-neutral-500" title="{{ $pandocAvailable ? __('shelf::shelf.pdf_engine_missing') : __('shelf::shelf.pandoc_missing') }}">
-                                <x-phosphor-file-pdf class="h-4 w-4" /> PDF
-                            </span>
-                        @endif
-                    </div>
-                </div>
+                <a href="{{ route('shelf.export', $selectedNode) }}"
+                   class="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                   title="{{ __('shelf::shelf.export_md') }}">
+                    <x-phosphor-export class="h-3.5 w-3.5" /> {{ __('shelf::shelf.export_md') }}
+                </a>
 
                 <button type="button" wire:click="toggleHistory"
                         class="inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs {{ $showHistory ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-500/40 dark:bg-indigo-500/10 dark:text-indigo-300' : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800' }}">

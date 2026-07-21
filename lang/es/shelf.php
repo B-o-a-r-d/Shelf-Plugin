@@ -53,11 +53,8 @@ return [
     'import_as_file' => 'Almacenar tal cual',
     'import_confirm' => 'Importar',
     'import_running' => 'Importando…',
-    'import_failed' => 'La conversión de «:name» falló; el archivo fue omitido.',
-    'export' => 'Exportar',
-    'export_failed' => 'La exportación falló.',
-    'pandoc_missing' => 'pandoc no está instalado en esta instancia.',
-    'pdf_engine_missing' => 'No hay ningún motor PDF (LaTeX/wkhtmltopdf) instalado en esta instancia.',
+    'import_failed' => 'La importación de «:name» falló; el archivo fue omitido.',
+    'export_md' => 'Exportar (.md)',
 
     'setting_revisions_keep' => 'Revisiones conservadas por nota',
     'setting_revisions_keep_help' => 'Número de instantáneas automáticas guardadas para cada nota.',
