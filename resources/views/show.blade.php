@@ -1,18 +1,115 @@
 <div class="-mb-8 flex h-[calc(100dvh-6rem)] min-h-0 flex-col overflow-hidden" x-data="{ dragId: null }">
 
-    {{-- Header --}}
-    <div class="flex flex-wrap items-center gap-4 border-b border-neutral-200 bg-white px-4 py-3 dark:border-neutral-800 dark:bg-neutral-900">
-        <a href="{{ route('dashboard') }}" wire:navigate class="inline-flex items-center gap-1 text-sm text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200">
-            <x-phosphor-arrow-left class="h-4 w-4" /> {{ __('shelf::shelf.back_to_dashboard') }}
-        </a>
+    {{-- Board navbar: same anatomy as the kanban board header — switcher +
+         presence — plus Shelf's own actions (quota, trash) on the right. --}}
+    <div class="flex flex-wrap items-center gap-3 border-b border-neutral-200 bg-white px-4 py-2 dark:border-neutral-800 dark:bg-neutral-900">
+        <div class="flex min-w-0 flex-1 items-center gap-2">
+            <div class="relative min-w-0" x-data="{ switcherOpen: false }" @keydown.escape.window="switcherOpen = false">
+                <button type="button" @click="switcherOpen = ! switcherOpen" :aria-expanded="switcherOpen"
+                        class="relative flex min-w-0 max-w-full items-center rounded-lg py-0.5 pl-2 pr-8 text-left transition hover:bg-neutral-100 dark:hover:bg-neutral-800">
+                    <x-phosphor-books class="mr-2 h-5 w-5 shrink-0 text-indigo-500" />
+                    <span class="flex min-w-0 flex-col leading-tight">
+                        <span class="truncate text-base font-semibold tracking-tight sm:text-lg">{{ $board->name }}</span>
+                        <span class="truncate text-[11px] font-medium text-neutral-500 dark:text-neutral-400">{{ $board->workspace->name }}</span>
+                    </span>
+                    <x-phosphor-caret-up-down class="absolute right-2 h-4 w-4 shrink-0 opacity-60"/>
+                </button>
 
-        <div class="flex min-w-0 items-center gap-2">
-            <x-phosphor-books class="h-5 w-5 shrink-0 text-indigo-500" />
-            <h1 class="truncate text-lg font-semibold tracking-tight">{{ $board->name }}</h1>
-            <span class="hidden truncate text-sm text-neutral-500 sm:block dark:text-neutral-400">— {{ $board->workspace->name }}</span>
+                <div x-show="switcherOpen" x-cloak x-transition
+                     @click.outside="switcherOpen = false"
+                     class="absolute left-0 top-full z-50 mt-1 w-64 rounded-xl border border-neutral-200 bg-white p-1 text-neutral-700 shadow-lg dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200">
+                    <p class="truncate px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-400">{{ $board->workspace->name }}</p>
+                    <div class="max-h-72 overflow-y-auto">
+                        @foreach ($switcherBoards as $switchBoard)
+                            @php
+                                $switchType = $switchBoard->isKanban() ? null : (($switcherTypes ?? [])[$switchBoard->type] ?? false);
+                            @endphp
+                            @continue($switchType === false)
+                            <a href="{{ $switchType === null ? route('boards.show', $switchBoard) : route($switchType['route'], $switchBoard) }}" wire:navigate @click="switcherOpen = false"
+                               wire:key="shelf-switcher-{{ $switchBoard->id }}"
+                               class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition hover:bg-neutral-100 dark:hover:bg-neutral-800 {{ $switchBoard->id === $board->id ? 'font-medium text-indigo-600 dark:text-indigo-400' : '' }}">
+                                @if ($switchType === null)
+                                    <x-phosphor-kanban class="h-4 w-4 shrink-0 opacity-60"/>
+                                @else
+                                    <x-dynamic-component :component="'phosphor-'.$switchType['icon']" class="h-4 w-4 shrink-0 opacity-60"/>
+                                @endif
+                                <span class="min-w-0 flex-1 truncate">{{ $switchBoard->name }}</span>
+                                @if ($switchBoard->id === $board->id)<x-phosphor-check class="h-4 w-4 shrink-0"/>@endif
+                            </a>
+                        @endforeach
+                    </div>
+                    <div class="mx-1 my-1 h-px bg-neutral-100 dark:bg-neutral-800"></div>
+                    <a href="{{ route('dashboard') }}" wire:navigate @click="switcherOpen = false"
+                       class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition hover:bg-neutral-100 dark:hover:bg-neutral-800">
+                        <x-phosphor-squares-four class="h-4 w-4 shrink-0 opacity-60"/> {{ __('Tous les tableaux') }}
+                    </a>
+                </div>
+            </div>
+
+            @unless ($canWrite)
+                <span class="inline-flex shrink-0 items-center gap-1 rounded-full bg-neutral-200/80 px-2 py-0.5 text-[11px] font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300" title="{{ __('Votre rôle est en lecture seule sur ce tableau.') }}">
+                    <x-phosphor-eye class="h-3.5 w-3.5"/><span class="hidden sm:inline">{{ __('Lecture seule') }}</span>
+                </span>
+            @endunless
         </div>
 
-        <div class="ml-auto flex items-center gap-3">
+        <div class="flex flex-wrap items-center gap-3">
+            {{-- Presence: who is currently viewing this board --}}
+            <div
+                class="flex items-center -space-x-2"
+                x-data='{
+                    users: [],
+                    init() {
+                        if (! window.Echo) return;
+                        const channel = "board-presence.{{ $board->id }}";
+                        window.Echo.join(channel)
+                            .here((u) => { this.users = u; })
+                            .joining((u) => { this.users = [...this.users, u]; })
+                            .leaving((u) => { this.users = this.users.filter((x) => x.id !== u.id); });
+                        document.addEventListener("livewire:navigating", () => window.Echo.leave(channel), { once: true });
+                    }
+                }'
+            >
+                <template x-for="u in users" :key="u.id">
+                    <div x-data="hoverCard(u)" @mouseenter="enter()" @mouseleave="leave()" class="relative inline-flex leading-none">
+                        <template x-if="u.avatar_url">
+                            <img :src="u.avatar_url" :alt="u.name" :title="u.name" draggable="false"
+                                 class="h-8 w-8 rounded-full object-cover ring-2 ring-white dark:ring-neutral-950">
+                        </template>
+                        <template x-if="! u.avatar_url">
+                            <span class="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700 ring-2 ring-white dark:bg-indigo-500/20 dark:text-indigo-300 dark:ring-neutral-950"
+                                  :title="u.name" x-text="u.name.charAt(0).toUpperCase()"></span>
+                        </template>
+
+                        <template x-teleport="body">
+                            <template x-if="open">
+                                <div x-transition @mouseenter="enter()" @mouseleave="leave()"
+                                     :style="`top: ${coords.top}px; left: ${coords.left}px;`"
+                                     class="fixed z-50 w-64 cursor-default rounded-xl border border-neutral-200/70 bg-white p-4 text-left shadow-lg dark:border-neutral-700 dark:bg-neutral-900">
+                                    <div class="flex items-start gap-3">
+                                        <template x-if="user.avatar_url">
+                                            <img :src="user.avatar_url" :alt="user.name" class="h-10 w-10 shrink-0 rounded-full object-cover">
+                                        </template>
+                                        <template x-if="! user.avatar_url">
+                                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-semibold text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300"
+                                                  x-text="user.name.charAt(0).toUpperCase()"></span>
+                                        </template>
+                                        <div class="min-w-0 flex-1">
+                                            <p class="truncate font-semibold text-neutral-900 dark:text-neutral-100" x-text="user.name"></p>
+                                            <template x-if="user.biography">
+                                                <p class="mt-0.5 text-sm text-neutral-600 dark:text-neutral-300" x-text="user.biography"></p>
+                                            </template>
+                                            <template x-if="! user.biography">
+                                                <p class="mt-0.5 text-sm italic text-neutral-400">{{ __('Pas de biographie.') }}</p>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </template>
+                    </div>
+                </template>
+            </div>
             {{-- Quota gauge --}}
             <div class="flex items-center gap-2" title="{{ __('shelf::shelf.quota_usage', ['used' => $this->formatBytes($usedBytes), 'quota' => $this->formatBytes($quotaBytes)]) }}">
                 <x-phosphor-hard-drives class="h-4 w-4 text-neutral-400" />

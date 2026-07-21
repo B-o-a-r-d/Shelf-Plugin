@@ -8,7 +8,6 @@ return [
     'name' => 'nombre',
     'quota' => 'cuota',
 
-    'back_to_dashboard' => 'Panel',
     'save' => 'Guardar',
     'open' => 'Abrir',
 

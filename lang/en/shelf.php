@@ -8,7 +8,6 @@ return [
     'name' => 'name',
     'quota' => 'quota',
 
-    'back_to_dashboard' => 'Dashboard',
     'save' => 'Save',
     'open' => 'Open',
 

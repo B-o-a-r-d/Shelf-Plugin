@@ -2,7 +2,10 @@
 
 namespace Board\PluginShelf\Livewire;
 
+use App\Enums\BoardVisibility;
 use App\Models\Board;
+use Board\PluginSdk\Contracts\ProvidesBoardType;
+use Board\PluginSdk\PluginRegistry;
 use Board\PluginShelf\Events\ShelfTreeUpdated;
 use Board\PluginShelf\Models\ShelfBoard;
 use Board\PluginShelf\Models\ShelfNode;
@@ -15,6 +18,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -758,6 +762,18 @@ class ShelfShow extends Component
             'revisions' => $revisions,
             'viewingRevision' => $viewingRevision,
             'revisionDiff' => $revisionDiff,
+            // Board navbar (same anatomy as the kanban header): every board of
+            // the workspace this user can open, each routed to its surface.
+            'switcherBoards' => $this->board->workspace->boards()
+                ->notArchived()
+                ->where('is_template', false)
+                ->where(function ($scoped) {
+                    $scoped->where('visibility', BoardVisibility::Workspace)
+                        ->orWhereHas('members', fn ($members) => $members->whereKey(Auth::id()));
+                })
+                ->orderBy('position')
+                ->get(['id', 'name', 'public_id', 'workspace_id', 'type']),
+            'switcherTypes' => $this->boardTypes(),
         ]);
     }
 
@@ -772,6 +788,39 @@ class ShelfShow extends Component
             $bytes >= 1024 => round($bytes / 1024).' '.__('shelf::shelf.kb'),
             default => $bytes.' '.__('shelf::shelf.bytes'),
         };
+    }
+
+    /**
+     * Board types contributed by active plugins, resolved through the SDK
+     * registry (the plugin never touches host internals): the switcher routes
+     * typed boards to their plugin page and skips orphan types.
+     *
+     * @return array<string, array{key: string, label: string, icon: string, route: string}>
+     */
+    private function boardTypes(): array
+    {
+        $types = [];
+
+        foreach (app(PluginRegistry::class)->all() as $plugin) {
+            if (! $plugin instanceof ProvidesBoardType) {
+                continue;
+            }
+
+            $key = $plugin->boardTypeKey();
+
+            if ($key === Board::TYPE_KANBAN || ! Route::has($plugin->boardTypeRoute())) {
+                continue;
+            }
+
+            $types[$key] = [
+                'key' => $key,
+                'label' => $plugin->boardTypeLabel(),
+                'icon' => $plugin->boardTypeIcon(),
+                'route' => $plugin->boardTypeRoute(),
+            ];
+        }
+
+        return $types;
     }
 
     // --- Internals --------------------------------------------------------------
