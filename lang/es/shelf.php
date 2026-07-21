@@ -33,7 +33,17 @@ return [
     'empty_state_title' => 'Tu estantería está lista.',
     'empty_state_hint' => 'Selecciona un elemento del árbol, o crea una carpeta o una nota desde el panel izquierdo.',
     'folder_empty' => 'Esta carpeta está vacía.',
-    'file_preview_soon' => 'La previsualización de archivos llega en una próxima fase de Shelf.',
+
+    'file' => 'archivo',
+    'upload_drag' => 'Arrastra archivos aquí',
+    'upload_drop' => 'Suelta los archivos',
+    'upload_browse' => 'o explora',
+    'upload_hint' => 'Varios archivos permitidos · 200 MB máx. por archivo',
+    'upload_failed' => 'La subida falló.',
+    'quota_upload_refused' => 'Cuota de almacenamiento superada: «:name» (y los siguientes) no se añadieron.',
+    'download' => 'Descargar',
+    'uploaded_by' => 'añadido por :name',
+    'no_preview' => 'No hay previsualización para este tipo de archivo.',
 
     'setting_revisions_keep' => 'Revisiones conservadas por nota',
     'setting_revisions_keep_help' => 'Número de instantáneas automáticas guardadas para cada nota.',

@@ -10,13 +10,8 @@
     <div class="mt-4 space-y-1">
         @forelse ($trashedNodes as $node)
             <div class="flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-800 dark:bg-neutral-900" wire:key="shelf-trash-{{ $node->id }}">
-                @if ($node->isFolder())
-                    <x-phosphor-folder class="h-4 w-4 shrink-0 text-amber-500" />
-                @elseif ($node->type === \Board\PluginShelf\Models\ShelfNode::TYPE_NOTE)
-                    <x-phosphor-file-text class="h-4 w-4 shrink-0 text-indigo-500" />
-                @else
-                    <x-phosphor-file class="h-4 w-4 shrink-0 text-neutral-400" />
-                @endif
+                <x-dynamic-component :component="'phosphor-'.$node->iconName()"
+                    @class(['h-4 w-4 shrink-0', 'text-amber-500' => $node->isFolder(), 'text-indigo-500' => $node->type === \Board\PluginShelf\Models\ShelfNode::TYPE_NOTE, 'text-neutral-400' => $node->type === \Board\PluginShelf\Models\ShelfNode::TYPE_FILE]) />
                 <span class="min-w-0 flex-1 truncate">{{ $node->name }}</span>
                 <span class="text-xs whitespace-nowrap text-neutral-400 dark:text-neutral-500">{{ $node->archived_at->diffForHumans() }}</span>
                 @if ($canWrite)

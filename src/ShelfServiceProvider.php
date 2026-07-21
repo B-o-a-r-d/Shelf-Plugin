@@ -5,6 +5,7 @@ namespace Board\PluginShelf;
 use App\Models\User;
 use Board\PluginSdk\Contracts\Plugin;
 use Board\PluginSdk\PluginServiceProvider;
+use Board\PluginShelf\Http\ShelfFileController;
 use Board\PluginShelf\Livewire\ShelfShow;
 use Board\PluginShelf\Models\ShelfNode;
 use Illuminate\Console\Scheduling\Schedule;
@@ -24,6 +25,10 @@ class ShelfServiceProvider extends PluginServiceProvider
         Route::middleware(['web', 'auth', 'verified'])
             ->get('/shelf/{board:public_id}', ShelfShow::class)
             ->name('shelf.show');
+
+        Route::middleware(['web', 'auth'])
+            ->get('/shelf/file/{node:public_id}', ShelfFileController::class)
+            ->name('shelf.file');
 
         // The provider boots at runtime (plugin loader), after the host's
         // routes: the name lookup table must be refreshed or Route::has()

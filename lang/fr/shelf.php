@@ -33,7 +33,17 @@ return [
     'empty_state_title' => 'Votre étagère est prête.',
     'empty_state_hint' => 'Sélectionnez un élément dans l\'arborescence, ou créez un dossier ou une note depuis le panneau de gauche.',
     'folder_empty' => 'Ce dossier est vide.',
-    'file_preview_soon' => 'La prévisualisation des fichiers arrive dans une prochaine phase de Shelf.',
+
+    'file' => 'fichier',
+    'upload_drag' => 'Glissez des fichiers ici',
+    'upload_drop' => 'Déposez les fichiers',
+    'upload_browse' => 'ou parcourez',
+    'upload_hint' => 'Plusieurs fichiers possibles · 200 Mo max par fichier',
+    'upload_failed' => 'Le téléversement a échoué.',
+    'quota_upload_refused' => 'Quota de stockage dépassé : « :name » (et les suivants) n\'ont pas été ajoutés.',
+    'download' => 'Télécharger',
+    'uploaded_by' => 'ajouté par :name',
+    'no_preview' => 'Pas de prévisualisation pour ce type de fichier.',
 
     'setting_revisions_keep' => 'Révisions conservées par note',
     'setting_revisions_keep_help' => 'Nombre d\'instantanés automatiques gardés pour chaque note.',

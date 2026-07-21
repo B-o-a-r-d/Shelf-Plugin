@@ -101,6 +101,11 @@
                     <x-phosphor-books class="h-12 w-12 text-neutral-300 dark:text-neutral-700" />
                     <p class="mt-3 text-sm font-medium text-neutral-500 dark:text-neutral-400">{{ __('shelf::shelf.empty_state_title') }}</p>
                     <p class="mt-1 max-w-sm text-xs text-neutral-400 dark:text-neutral-500">{{ __('shelf::shelf.empty_state_hint') }}</p>
+                    @if ($canWrite)
+                        <div class="mt-6 w-full max-w-md">
+                            @include('shelf::partials.upload-zone')
+                        </div>
+                    @endif
                 </div>
             @elseif ($selectedNode->isFolder())
                 <div class="mx-auto max-w-3xl">
@@ -112,32 +117,28 @@
                         @forelse ($childrenByParent->get($selectedNode->id, collect()) as $child)
                             <button type="button" wire:click="selectNode({{ $child->id }})"
                                     class="flex w-full items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-left text-sm hover:border-indigo-300 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-indigo-500/40">
-                                @if ($child->isFolder())
-                                    <x-phosphor-folder class="h-4 w-4 shrink-0 text-amber-500" />
-                                @elseif ($child->type === \Board\PluginShelf\Models\ShelfNode::TYPE_NOTE)
-                                    <x-phosphor-file-text class="h-4 w-4 shrink-0 text-indigo-500" />
-                                @else
-                                    <x-phosphor-file class="h-4 w-4 shrink-0 text-neutral-400" />
+                                <x-dynamic-component :component="'phosphor-'.$child->iconName()"
+                                    @class(['h-4 w-4 shrink-0', 'text-amber-500' => $child->isFolder(), 'text-indigo-500' => $child->type === \Board\PluginShelf\Models\ShelfNode::TYPE_NOTE, 'text-neutral-400' => $child->type === \Board\PluginShelf\Models\ShelfNode::TYPE_FILE]) />
+                                <span class="min-w-0 flex-1 truncate">{{ $child->name }}</span>
+                                @if ($child->type === \Board\PluginShelf\Models\ShelfNode::TYPE_FILE)
+                                    <span class="text-xs text-neutral-400 dark:text-neutral-500">{{ $this->formatBytes($child->size) }}</span>
                                 @endif
-                                <span class="truncate">{{ $child->name }}</span>
                             </button>
                         @empty
                             <p class="rounded-lg border border-dashed border-neutral-300 px-3 py-6 text-center text-xs text-neutral-400 dark:border-neutral-700 dark:text-neutral-500">{{ __('shelf::shelf.folder_empty') }}</p>
                         @endforelse
                     </div>
+
+                    @if ($canWrite)
+                        <div class="mt-4">
+                            @include('shelf::partials.upload-zone')
+                        </div>
+                    @endif
                 </div>
             @elseif ($noteOpen)
                 @include('shelf::partials.note')
             @else
-                <div class="mx-auto max-w-3xl">
-                    <div class="flex items-center gap-2">
-                        <x-phosphor-file class="h-6 w-6 text-neutral-400" />
-                        <h2 class="text-xl font-semibold tracking-tight">{{ $selectedNode->name }}</h2>
-                    </div>
-                    <div class="mt-6 rounded-2xl border border-dashed border-neutral-300 p-8 text-center dark:border-neutral-700">
-                        <p class="text-sm text-neutral-500 dark:text-neutral-400">{{ __('shelf::shelf.file_preview_soon') }}</p>
-                    </div>
-                </div>
+                @include('shelf::partials.file')
             @endif
         </main>
     </div>

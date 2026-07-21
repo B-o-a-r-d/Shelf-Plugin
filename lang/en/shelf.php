@@ -33,7 +33,17 @@ return [
     'empty_state_title' => 'Your shelf is ready.',
     'empty_state_hint' => 'Select an item in the tree, or create a folder or a note from the left panel.',
     'folder_empty' => 'This folder is empty.',
-    'file_preview_soon' => 'File previews arrive in an upcoming Shelf phase.',
+
+    'file' => 'file',
+    'upload_drag' => 'Drag files here',
+    'upload_drop' => 'Drop the files',
+    'upload_browse' => 'or browse',
+    'upload_hint' => 'Multiple files allowed · 200 MB max per file',
+    'upload_failed' => 'The upload failed.',
+    'quota_upload_refused' => 'Storage quota exceeded: ":name" (and the following ones) were not added.',
+    'download' => 'Download',
+    'uploaded_by' => 'added by :name',
+    'no_preview' => 'No preview for this file type.',
 
     'setting_revisions_keep' => 'Revisions kept per note',
     'setting_revisions_keep_help' => 'Number of automatic snapshots kept for each note.',

@@ -15,6 +15,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
+use Livewire\WithFileUploads;
 
 /**
  * The full-page surface of a Shelf board: explorer tree (folders / notes /
@@ -25,6 +27,11 @@ use Livewire\Component;
 #[Layout('components.layouts.app')]
 class ShelfShow extends Component
 {
+    use WithFileUploads;
+
+    /** Aligned on the instance-wide upload cap (200 MB), in kilobytes. */
+    private const MAX_UPLOAD_KB = 204800;
+
     public Board $board;
 
     public bool $canWrite = false;
@@ -53,6 +60,11 @@ class ShelfShow extends Component
     public bool $showHistory = false;
 
     public ?int $viewingRevisionId = null;
+
+    /** @var array<int, TemporaryUploadedFile> */
+    public array $uploads = [];
+
+    public ?string $uploadError = null;
 
     public function mount(Board $board): void
     {
@@ -253,8 +265,69 @@ class ShelfShow extends Component
             return;
         }
 
-        $node->delete();
+        // Model-by-model so every stored file of the branch is reclaimed.
+        $node->deleteSubtree();
 
+        $this->touchTree();
+    }
+
+    // --- File uploads -------------------------------------------------------------
+
+    /**
+     * Persist the dropped files as file nodes of the current folder (the
+     * selected folder, or the root). Each file is checked against the board
+     * quota as it lands; the first one that would overflow stops the batch
+     * with a clear error, nothing is half-stored.
+     */
+    public function saveUploads(): void
+    {
+        abort_unless($this->canWrite, 403);
+
+        $this->uploadError = null;
+
+        $this->validate(
+            ['uploads.*' => 'file|max:'.self::MAX_UPLOAD_KB],
+            [],
+            ['uploads.*' => __('shelf::shelf.file')],
+        );
+
+        $selected = $this->selectedNodeId !== null
+            ? ShelfNode::where('board_id', $this->board->id)->find($this->selectedNodeId)
+            : null;
+        $parent = ($selected !== null && $selected->isFolder() && ! $selected->isTrashed()) ? $selected : null;
+
+        $used = ShelfNode::usedBytes($this->board);
+        $quota = ShelfBoard::quotaBytesFor($this->board);
+
+        foreach ($this->uploads as $upload) {
+            $size = (int) $upload->getSize();
+
+            if ($used + $size > $quota) {
+                $this->uploadError = __('shelf::shelf.quota_upload_refused', ['name' => $upload->getClientOriginalName()]);
+
+                break;
+            }
+
+            $node = ShelfNode::create([
+                'board_id' => $this->board->id,
+                'parent_id' => $parent?->id,
+                'type' => ShelfNode::TYPE_FILE,
+                'name' => $upload->getClientOriginalName(),
+                'position' => $this->nextPosition($parent?->id),
+                'size' => $size,
+                'mime' => $upload->getMimeType(),
+                'created_by' => Auth::id(),
+            ]);
+
+            $safeName = preg_replace('/[^\w.\- ]+/u', '_', $upload->getClientOriginalName()) ?: 'fichier';
+            $path = $upload->storeAs('shelf/'.$this->board->public_id.'/'.$node->public_id, $safeName, 'local');
+
+            $node->update(['file_path' => $path]);
+
+            $used += $size;
+        }
+
+        $this->uploads = [];
         $this->touchTree();
     }
 

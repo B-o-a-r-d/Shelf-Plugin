@@ -34,13 +34,8 @@
                     <span class="w-4"></span>
                 @endif
 
-                @if ($isFolder)
-                    <x-phosphor-folder class="h-4 w-4 shrink-0 text-amber-500" />
-                @elseif ($isNote)
-                    <x-phosphor-file-text class="h-4 w-4 shrink-0 text-indigo-500" />
-                @else
-                    <x-phosphor-file class="h-4 w-4 shrink-0 text-neutral-400" />
-                @endif
+                <x-dynamic-component :component="'phosphor-'.$node->iconName()"
+                    @class(['h-4 w-4 shrink-0', 'text-amber-500' => $isFolder, 'text-indigo-500' => $isNote, 'text-neutral-400' => ! $isFolder && ! $isNote]) />
 
                 @if ($renamingNodeId === $node->id)
                     <form wire:submit="renameNode" class="min-w-0 flex-1" @click.stop>
