@@ -1,13 +1,16 @@
-<div class="-mb-8 flex h-[calc(100dvh-6rem)] min-h-0 flex-col overflow-hidden" x-data="{ dragId: null }">
+<div class="-mb-8 flex h-[calc(100dvh-6rem)] flex-col" x-data="{ dragId: null }">
+    @php
+        // Same action-button recipe as the kanban board topbar (no-background variant).
+        $topBtn = 'flex h-8 shrink-0 items-center justify-center rounded-lg border shadow-sm transition border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700';
+    @endphp
 
-    {{-- Board navbar: same anatomy as the kanban board header — switcher +
-         presence — plus Shelf's own actions (quota, trash) on the right. --}}
-    <div class="flex flex-wrap items-center gap-3 border-b border-neutral-200 bg-white px-4 py-2 dark:border-neutral-800 dark:bg-neutral-900">
+    {{-- Board topbar: slim full-bleed bar glued under the navbar, identical to
+         the kanban board header — switcher left, presence + actions right. --}}
+    <div class="relative z-30 -mx-4 -mt-8 mb-3 flex min-h-12 flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-neutral-200 bg-white px-4 py-1.5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 dark:border-neutral-800 dark:bg-neutral-900">
         <div class="flex min-w-0 flex-1 items-center gap-2">
             <div class="relative min-w-0" x-data="{ switcherOpen: false }" @keydown.escape.window="switcherOpen = false">
                 <button type="button" @click="switcherOpen = ! switcherOpen" :aria-expanded="switcherOpen"
                         class="relative flex min-w-0 max-w-full items-center rounded-lg py-0.5 pl-2 pr-8 text-left transition hover:bg-neutral-100 dark:hover:bg-neutral-800">
-                    <x-phosphor-books class="mr-2 h-5 w-5 shrink-0 text-indigo-500" />
                     <span class="flex min-w-0 flex-col leading-tight">
                         <span class="truncate text-base font-semibold tracking-tight sm:text-lg">{{ $board->name }}</span>
                         <span class="truncate text-[11px] font-medium text-neutral-500 dark:text-neutral-400">{{ $board->workspace->name }}</span>
@@ -53,7 +56,7 @@
             @endunless
         </div>
 
-        <div class="flex flex-wrap items-center gap-3">
+        <div class="flex flex-wrap items-center gap-2">
             {{-- Presence: who is currently viewing this board --}}
             <div
                 class="flex items-center -space-x-2"
@@ -122,7 +125,7 @@
             {{-- Quota override (board admins) --}}
             @if ($canManage)
                 <div x-data="{ open: false }" class="relative">
-                    <button type="button" @click="open = ! open" class="rounded p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200" title="{{ __('shelf::shelf.quota_configure') }}">
+                    <button type="button" @click="open = ! open" class="{{ $topBtn }} w-8" title="{{ __('shelf::shelf.quota_configure') }}">
                         <x-phosphor-gear class="h-4 w-4" />
                     </button>
                     <div x-show="open" x-cloak @click.outside="open = false" x-transition.opacity.duration.100ms
@@ -142,7 +145,7 @@
 
             {{-- Trash toggle --}}
             <button type="button" wire:click="$toggle('showTrash')"
-                    class="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm {{ $showTrash ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-500/40 dark:bg-indigo-500/10 dark:text-indigo-300' : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800' }}">
+                    class="{{ $topBtn }} gap-1.5 px-2.5 text-sm {{ $showTrash ? '!border-indigo-300 !bg-indigo-50 !text-indigo-700 dark:!border-indigo-500/40 dark:!bg-indigo-500/10 dark:!text-indigo-300' : '' }}">
                 <x-phosphor-trash class="h-4 w-4" />
                 {{ __('shelf::shelf.trash') }}
                 @if ($trashedNodes->isNotEmpty())
@@ -152,7 +155,7 @@
         </div>
     </div>
 
-    <div class="flex min-h-0 flex-1">
+    <div class="mb-3 flex min-h-0 flex-1 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
 
         {{-- Tree --}}
         <aside class="flex w-72 shrink-0 flex-col border-r border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/60">
