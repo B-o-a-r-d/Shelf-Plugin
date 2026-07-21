@@ -142,4 +142,8 @@
             @endif
         </main>
     </div>
+
+    @if ($showImportModal)
+        @include('shelf::partials.import-modal')
+    @endif
 </div>

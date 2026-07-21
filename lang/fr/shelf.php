@@ -45,6 +45,20 @@ return [
     'uploaded_by' => 'ajouté par :name',
     'no_preview' => 'Pas de prévisualisation pour ce type de fichier.',
 
+    'cancel' => 'Annuler',
+    'import_title' => 'Importer des fichiers',
+    'import_hint' => 'Choisissez le devenir de chaque fichier : converti en note éditable, décompressé en arborescence, ou stocké tel quel.',
+    'import_as_note' => 'Convertir en note',
+    'import_as_tree' => 'Importer l\'arborescence',
+    'import_as_file' => 'Stocker tel quel',
+    'import_confirm' => 'Importer',
+    'import_running' => 'Import en cours…',
+    'import_failed' => 'La conversion de « :name » a échoué ; le fichier a été ignoré.',
+    'export' => 'Exporter',
+    'export_failed' => 'L\'export a échoué.',
+    'pandoc_missing' => 'pandoc n\'est pas installé sur cette instance.',
+    'pdf_engine_missing' => 'Aucun moteur PDF (LaTeX/wkhtmltopdf) n\'est installé sur cette instance.',
+
     'setting_revisions_keep' => 'Révisions conservées par note',
     'setting_revisions_keep_help' => 'Nombre d\'instantanés automatiques gardés pour chaque note.',
 

@@ -45,6 +45,20 @@ return [
     'uploaded_by' => 'added by :name',
     'no_preview' => 'No preview for this file type.',
 
+    'cancel' => 'Cancel',
+    'import_title' => 'Import files',
+    'import_hint' => 'Choose what each file becomes: converted into an editable note, unpacked as a tree, or stored as-is.',
+    'import_as_note' => 'Convert to note',
+    'import_as_tree' => 'Import the tree',
+    'import_as_file' => 'Store as-is',
+    'import_confirm' => 'Import',
+    'import_running' => 'Importing…',
+    'import_failed' => 'Converting ":name" failed; the file was skipped.',
+    'export' => 'Export',
+    'export_failed' => 'The export failed.',
+    'pandoc_missing' => 'pandoc is not installed on this instance.',
+    'pdf_engine_missing' => 'No PDF engine (LaTeX/wkhtmltopdf) is installed on this instance.',
+
     'setting_revisions_keep' => 'Revisions kept per note',
     'setting_revisions_keep_help' => 'Number of automatic snapshots kept for each note.',
 

@@ -5,6 +5,7 @@ namespace Board\PluginShelf;
 use App\Models\User;
 use Board\PluginSdk\Contracts\Plugin;
 use Board\PluginSdk\PluginServiceProvider;
+use Board\PluginShelf\Http\ShelfExportController;
 use Board\PluginShelf\Http\ShelfFileController;
 use Board\PluginShelf\Livewire\ShelfShow;
 use Board\PluginShelf\Models\ShelfNode;
@@ -29,6 +30,11 @@ class ShelfServiceProvider extends PluginServiceProvider
         Route::middleware(['web', 'auth'])
             ->get('/shelf/file/{node:public_id}', ShelfFileController::class)
             ->name('shelf.file');
+
+        Route::middleware(['web', 'auth'])
+            ->get('/shelf/export/{node:public_id}/{format}', ShelfExportController::class)
+            ->where('format', 'md|docx|pdf')
+            ->name('shelf.export');
 
         // The provider boots at runtime (plugin loader), after the host's
         // routes: the name lookup table must be refreshed or Route::has()
