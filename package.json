@@ -1,0 +1,13 @@
+{
+    "name": "board-plugin-shelf",
+    "private": true,
+    "type": "module",
+    "description": "Build tooling for the Shelf Power-Up's front-end assets (compiled into dist/, committed).",
+    "scripts": {
+        "build": "tailwindcss -i resources/css/shelf.css -o dist/shelf.css --minify && node -e \"require('fs').copyFileSync('resources/js/shelf.js','dist/shelf.js')\""
+    },
+    "devDependencies": {
+        "@tailwindcss/cli": "^4.0.0",
+        "tailwindcss": "^4.0.0"
+    }
+}

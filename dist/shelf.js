@@ -1,5 +1,12 @@
-@assets
-<script>
+/**
+ * Shelf note editor — the Alpine 'shelfNoteEditor' component and the plugin's
+ * TipTap extension registration. Uses host globals (window.Alpine,
+ * window.boardTiptap, window.Echo); it never bundles its own copy of them.
+ *
+ * Shipped as a pre-built asset (this file IS the build output — no bundler
+ * needed, it only uses browser + host globals) and served by the host via
+ * ProvidesAssets. Kept in resources/js as the maintained source.
+ */
 (() => {
     // Shelf's TipTap extension set, namespaced in the host registry: other
     // plugins register their own key and never interfere — an editor only
@@ -525,5 +532,3 @@
         document.addEventListener('alpine:init', register)
     }
 })()
-</script>
-@endassets

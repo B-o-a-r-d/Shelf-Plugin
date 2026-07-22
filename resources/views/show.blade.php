@@ -1,4 +1,9 @@
 <div class="-mb-8 flex h-[calc(100dvh-6rem)] flex-col" x-data="{ dragId: null }">
+    {{-- Shelf's pre-built CSS + JS (compiled in dist/), served by the host and
+         loaded once. Carries the plugin-specific Tailwind classes the host build
+         purges, and registers the note editor's Alpine component. --}}
+    <x-plugin-assets plugin="shelf" />
+
     @php
         // Same action-button recipe as the kanban board topbar (no-background variant).
         $topBtn = 'flex h-8 shrink-0 items-center justify-center rounded-lg border shadow-sm transition border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700';

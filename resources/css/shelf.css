@@ -1,0 +1,15 @@
+/*
+ * Shelf's own Tailwind utilities, compiled from its Blade + JS and served on the
+ * Shelf page by the host (ProvidesAssets). A runtime plugin can't join the host
+ * build, so it ships this compiled output in dist/.
+ *
+ * Theme + utilities only, NO preflight: the host page already carries Tailwind's
+ * base reset — re-importing it here would clobber the host's styles.
+ */
+@layer theme, base, components, utilities;
+
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+@source '../views';
+@source '../js';

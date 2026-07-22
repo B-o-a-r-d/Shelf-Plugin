@@ -197,4 +197,5 @@
     @endif
 </div>
 
-@include('shelf::partials.note-scripts')
+{{-- The note editor's Alpine component ships in dist/shelf.js, loaded once on
+     the page by <x-plugin-assets> (see show.blade.php) — no inline script here. --}}

@@ -6,7 +6,7 @@
     "keywords": ["board", "kanban", "shelf", "documents", "notes", "markdown"],
     "require": {
         "php": "^8.3",
-        "board/plugin-sdk": "^0.2.8"
+        "board/plugin-sdk": "^0.2.9"
     },
     "autoload": {
         "psr-4": {

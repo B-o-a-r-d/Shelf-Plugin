@@ -4,6 +4,7 @@ namespace Board\PluginShelf;
 
 use Board\PluginSdk\Contracts\DefinesActivities;
 use Board\PluginSdk\Contracts\Plugin;
+use Board\PluginSdk\Contracts\ProvidesAssets;
 use Board\PluginSdk\Contracts\ProvidesBoardType;
 use Board\PluginSdk\Contracts\ProvidesMcpTools;
 use Board\PluginSdk\Contracts\ProvidesSettings;
@@ -20,7 +21,7 @@ use Board\PluginShelf\Mcp\ShelfWriteNoteTool;
  * notes and files, under a storage quota. The host handles membership, roles,
  * pinning and cross-workspace moves like any other board.
  */
-class ShelfPlugin implements DefinesActivities, Plugin, ProvidesBoardType, ProvidesMcpTools, ProvidesSettings
+class ShelfPlugin implements DefinesActivities, Plugin, ProvidesAssets, ProvidesBoardType, ProvidesMcpTools, ProvidesSettings
 {
     /** Instance default when the admin has not configured a quota (in GB). */
     public const DEFAULT_QUOTA_GB = 5;
@@ -46,6 +47,24 @@ class ShelfPlugin implements DefinesActivities, Plugin, ProvidesBoardType, Provi
     public function icon(): string
     {
         return 'books';
+    }
+
+    // --- ProvidesAssets (pre-built CSS/JS served on the Shelf page) -------------
+
+    /**
+     * @return array<int, string>
+     */
+    public function assetStyles(): array
+    {
+        return ['shelf.css'];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function assetScripts(): array
+    {
+        return ['shelf.js'];
     }
 
     public function requiresOAuth(): bool
