@@ -11,7 +11,13 @@
     // Shelf's TipTap extension set, namespaced in the host registry: other
     // plugins register their own key and never interfere — an editor only
     // gets the sets it explicitly asks for (extensionsFor).
-    const registerExtensions = () => window.boardTiptap?.register('shelf', ({ tables }) => [
+    //
+    // Registered from init() (not at module load): the script runs whenever the
+    // host injects it, possibly BEFORE window.boardTiptap exists — a load-time
+    // register() would then no-op and the tables extension would be missing.
+    // Registering inside init(), after boardTiptap.load() resolves, guarantees
+    // the registry is present; register() is idempotent so re-mounts are free.
+    const registerShelfExtensions = () => window.boardTiptap.register('shelf', ({ tables }) => [
         tables.Table.configure({ resizable: false }),
         tables.TableRow,
         tables.TableHeader,
@@ -59,6 +65,7 @@
             }
 
             const mods = await window.boardTiptap.load()
+            registerShelfExtensions()
             const extra = await window.boardTiptap.extensionsFor('shelf')
             const mount = this.$root.querySelector('.js-note-mount')
 
@@ -523,8 +530,6 @@
             this.$root._tiptap = null
         },
     }))
-
-    registerExtensions()
 
     if (window.Alpine) {
         register()
