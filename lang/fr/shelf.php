@@ -40,6 +40,7 @@ return [
     'upload_hint' => 'Plusieurs fichiers possibles · 200 Mo max par fichier',
     'upload_failed' => 'Le téléversement a échoué.',
     'quota_upload_refused' => 'Quota de stockage dépassé : « :name » (et les suivants) n\'ont pas été ajoutés.',
+    'open_fullscreen' => 'Plein écran',
     'download' => 'Télécharger',
     'uploaded_by' => 'ajouté par :name',
     'no_preview' => 'Pas de prévisualisation pour ce type de fichier.',

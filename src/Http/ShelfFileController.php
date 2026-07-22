@@ -17,11 +17,6 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class ShelfFileController
 {
-    private const SECURITY_HEADERS = [
-        'X-Content-Type-Options' => 'nosniff',
-        'Content-Security-Policy' => "default-src 'none'; style-src 'unsafe-inline'; sandbox",
-    ];
-
     public function __invoke(Request $request, ShelfNode $node): Response
     {
         Gate::authorize('view', $node->board);
@@ -43,9 +38,20 @@ class ShelfFileController
 
         $name = str_replace(['"', "\r", "\n"], '', $node->name);
 
-        return response()->file($storage->path($node->file_path), self::SECURITY_HEADERS + [
+        $headers = [
+            'X-Content-Type-Options' => 'nosniff',
             'Content-Type' => $mime,
             'Content-Disposition' => ($inline ? 'inline' : 'attachment').'; filename="'.$name.'"',
-        ]);
+        ];
+
+        // A sandboxed CSP disables the browser's built-in PDF viewer (toolbar,
+        // zoom, search, print). A genuine application/pdf served inline with
+        // `nosniff` can never be reinterpreted as active HTML, so the sandbox is
+        // pointless for it — drop it there, keep it (defence in depth) elsewhere.
+        if (! ($inline && $mime === 'application/pdf')) {
+            $headers['Content-Security-Policy'] = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
+        }
+
+        return response()->file($storage->path($node->file_path), $headers);
     }
 }

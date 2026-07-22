@@ -11,6 +11,12 @@
     <div class="flex flex-wrap items-center gap-3">
         <x-dynamic-component :component="'phosphor-'.$selectedNode->iconName()" class="h-6 w-6 shrink-0 text-neutral-400" />
         <h2 class="min-w-0 flex-1 truncate text-xl font-semibold tracking-tight">{{ $selectedNode->name }}</h2>
+        @if ($isPdf)
+            <a href="{{ $fileUrl }}" target="_blank" rel="noopener"
+               class="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 px-2.5 py-1.5 text-sm text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800">
+                <x-phosphor-arrows-out class="h-4 w-4" /> {{ __('shelf::shelf.open_fullscreen') }}
+            </a>
+        @endif
         <a href="{{ $fileUrl }}?dl=1"
            class="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 px-2.5 py-1.5 text-sm text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800">
             <x-phosphor-download-simple class="h-4 w-4" /> {{ __('shelf::shelf.download') }}

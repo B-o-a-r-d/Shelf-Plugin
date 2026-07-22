@@ -40,6 +40,7 @@ return [
     'upload_hint' => 'Varios archivos permitidos · 200 MB máx. por archivo',
     'upload_failed' => 'La subida falló.',
     'quota_upload_refused' => 'Cuota de almacenamiento superada: «:name» (y los siguientes) no se añadieron.',
+    'open_fullscreen' => 'Pantalla completa',
     'download' => 'Descargar',
     'uploaded_by' => 'añadido por :name',
     'no_preview' => 'No hay previsualización para este tipo de archivo.',

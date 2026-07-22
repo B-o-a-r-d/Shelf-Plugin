@@ -40,6 +40,7 @@ return [
     'upload_hint' => 'Multiple files allowed · 200 MB max per file',
     'upload_failed' => 'The upload failed.',
     'quota_upload_refused' => 'Storage quota exceeded: ":name" (and the following ones) were not added.',
+    'open_fullscreen' => 'Fullscreen',
     'download' => 'Download',
     'uploaded_by' => 'added by :name',
     'no_preview' => 'No preview for this file type.',
