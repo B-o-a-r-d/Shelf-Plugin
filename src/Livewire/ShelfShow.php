@@ -19,6 +19,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
@@ -824,9 +825,10 @@ class ShelfShow extends Component
     }
 
     /**
-     * Full-text-ish search over the reachable tree: node names in memory,
-     * note contents through a case-insensitive LIKE (portable across
-     * pgsql/sqlite), with a ±60-char snippet around the first content match.
+     * Search over the reachable tree: node names in memory, note contents via
+     * Postgres full-text (tsvector + GIN, prefix-matched and ranked) with a
+     * portable LIKE fallback on other drivers. Each content hit carries a
+     * ±60-char snippet around the first matching term.
      *
      * @param  Collection<int, ShelfNode>  $reachable
      * @return array<int, array{node: ShelfNode, snippet: string|null}>
@@ -841,6 +843,8 @@ class ShelfShow extends Component
 
         $results = [];
 
+        // Names: lenient in-memory substring (covers folders, files and notes;
+        // the tree is already loaded).
         foreach ($reachable as $node) {
             if (mb_stripos($node->name, $query) !== false) {
                 $results[$node->id] = ['node' => $node, 'snippet' => null];
@@ -851,24 +855,90 @@ class ShelfShow extends Component
             ->filter(fn (ShelfNode $node): bool => $node->type === ShelfNode::TYPE_NOTE)
             ->pluck('id');
 
-        if ($noteIds->isNotEmpty()) {
-            $matches = ShelfNote::whereIn('node_id', $noteIds)
-                ->whereRaw('LOWER(markdown) LIKE ?', ['%'.mb_strtolower($query).'%'])
-                ->get(['node_id', 'markdown']);
+        foreach ($this->searchNoteContents($noteIds, $query) as $match) {
+            $node = $reachable->firstWhere('id', $match->node_id);
 
-            foreach ($matches as $match) {
-                $node = $reachable->firstWhere('id', $match->node_id);
-                $position = mb_stripos((string) $match->markdown, $query);
-                $start = max(0, $position - 60);
-                $snippet = ($start > 0 ? '…' : '')
-                    .trim(mb_substr((string) $match->markdown, $start, 120 + mb_strlen($query)))
-                    .'…';
-
-                $results[$node->id] = ['node' => $node, 'snippet' => $results[$node->id]['snippet'] ?? $snippet];
+            if ($node === null) {
+                continue;
             }
+
+            $results[$node->id] = [
+                'node' => $node,
+                'snippet' => $results[$node->id]['snippet'] ?? $this->snippet((string) $match->markdown, $query),
+            ];
         }
 
         return array_slice(array_values($results), 0, 30);
+    }
+
+    /**
+     * Notes whose content matches the query, ranked. Postgres full-text with
+     * prefix matching where available; a portable case-insensitive LIKE
+     * otherwise (sqlite in tests).
+     *
+     * @param  Collection<int, int>  $noteIds
+     * @return Collection<int, ShelfNote>
+     */
+    private function searchNoteContents($noteIds, string $query): Collection
+    {
+        if ($noteIds->isEmpty()) {
+            return collect();
+        }
+
+        $base = ShelfNote::whereIn('node_id', $noteIds);
+
+        if (DB::connection()->getDriverName() === 'pgsql') {
+            $tsquery = $this->toPrefixTsQuery($query);
+
+            if ($tsquery === '') {
+                return collect();
+            }
+
+            return $base
+                ->whereRaw("search_vector @@ to_tsquery('simple', ?)", [$tsquery])
+                ->orderByRaw("ts_rank(search_vector, to_tsquery('simple', ?)) desc", [$tsquery])
+                ->limit(30)
+                ->get(['node_id', 'markdown']);
+        }
+
+        return $base
+            ->whereRaw('LOWER(markdown) LIKE ?', ['%'.mb_strtolower($query).'%'])
+            ->get(['node_id', 'markdown']);
+    }
+
+    /**
+     * Turn free text into a safe prefix tsquery — e.g. "pomm gold" becomes
+     * "pomm:* & gold:*". Only word/number tokens reach to_tsquery, so no
+     * user input can break its syntax.
+     */
+    private function toPrefixTsQuery(string $query): string
+    {
+        preg_match_all('/[\p{L}\p{N}]+/u', mb_strtolower($query), $matches);
+
+        $terms = array_slice($matches[0], 0, 6);
+
+        return implode(' & ', array_map(fn (string $term): string => $term.':*', $terms));
+    }
+
+    /**
+     * A ±60-char plain-text snippet around the first matching term in the note.
+     */
+    private function snippet(string $markdown, string $query): string
+    {
+        $position = mb_stripos($markdown, $query);
+
+        if ($position === false) {
+            // The tsquery matched a prefix — locate the first query word.
+            preg_match('/[\p{L}\p{N}]+/u', $query, $word);
+            $position = $word !== [] ? mb_stripos($markdown, $word[0]) : false;
+        }
+
+        $position = $position === false ? 0 : $position;
+        $start = max(0, $position - 60);
+
+        return ($start > 0 ? '…' : '')
+            .trim(mb_substr($markdown, $start, 120 + mb_strlen($query)))
+            .'…';
     }
 
     /**
