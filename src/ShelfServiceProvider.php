@@ -23,22 +23,22 @@ class ShelfServiceProvider extends PluginServiceProvider
         $this->loadViewsFrom(__DIR__.'/../resources/views', 'shelf');
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
 
+        // Runtime-registered routes MUST take their name through the fluent
+        // registrar (name BEFORE get): on a production host with cached routes
+        // the collection is compiled — ->name() after get() is never indexed
+        // and refreshNameLookups() is a no-op there, so Route::has('shelf.show')
+        // would stay false and the board type would be filtered out.
         Route::middleware(['web', 'auth', 'verified'])
-            ->get('/shelf/{board:public_id}', ShelfShow::class)
-            ->name('shelf.show');
+            ->name('shelf.show')
+            ->get('/shelf/{board:public_id}', ShelfShow::class);
 
         Route::middleware(['web', 'auth'])
-            ->get('/shelf/file/{node:public_id}', ShelfFileController::class)
-            ->name('shelf.file');
+            ->name('shelf.file')
+            ->get('/shelf/file/{node:public_id}', ShelfFileController::class);
 
         Route::middleware(['web', 'auth'])
-            ->get('/shelf/export/{node:public_id}', ShelfExportController::class)
-            ->name('shelf.export');
-
-        // The provider boots at runtime (plugin loader), after the host's
-        // routes: the name lookup table must be refreshed or Route::has()
-        // never sees 'shelf.show' and the board type is filtered out.
-        $this->app['router']->getRoutes()->refreshNameLookups();
+            ->name('shelf.export')
+            ->get('/shelf/export/{node:public_id}', ShelfExportController::class);
 
         // Presence channel of a note: who currently has it open. Authorized by
         // the host's BoardPolicy (view) on the node's board; the payload feeds
