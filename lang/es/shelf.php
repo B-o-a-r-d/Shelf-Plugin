@@ -56,6 +56,15 @@ return [
     'import_failed' => 'La importación de «:name» falló; el archivo fue omitido.',
     'export_md' => 'Exportar (.md)',
 
+    'share' => 'Compartir',
+    'share_title' => 'Compartir públicamente',
+    'share_hint' => 'Cualquiera con el enlace puede leer esta nota (solo lectura).',
+    'share_enable' => 'Crear un enlace público',
+    'share_revoke' => 'Revocar el enlace',
+    'share_copy' => 'Copiar',
+    'share_copied' => 'Copiado',
+    'public_read_only' => 'Nota compartida en solo lectura',
+
     'search_placeholder' => 'Buscar en la estantería…',
     'search_no_results' => 'Sin resultados.',
 

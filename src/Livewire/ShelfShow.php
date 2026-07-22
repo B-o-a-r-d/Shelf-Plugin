@@ -712,6 +712,28 @@ class ShelfShow extends Component
         );
     }
 
+    // --- Public sharing ---------------------------------------------------------
+
+    /**
+     * Toggle the public read-only link of a note. Enabling mints a random share
+     * token (idempotent); disabling revokes it, so any URL already copied stops
+     * resolving. Contribute permission required — same gate as editing.
+     */
+    public function toggleShare(int $nodeId): void
+    {
+        abort_unless($this->canWrite, 403);
+
+        $node = $this->node($nodeId);
+
+        abort_unless($node->type === ShelfNode::TYPE_NOTE && ! $node->isTrashed(), 422);
+
+        if ($node->isShared()) {
+            $node->disableSharing();
+        } else {
+            $node->enableSharing();
+        }
+    }
+
     // --- Quota ------------------------------------------------------------------
 
     public function saveQuota(): void

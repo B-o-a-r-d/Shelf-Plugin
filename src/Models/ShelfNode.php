@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -22,7 +23,7 @@ use Illuminate\Support\Str;
  * node restores the whole branch. Permanent deletion cascades to descendants
  * via the parent_id foreign key.
  */
-#[Fillable(['board_id', 'parent_id', 'type', 'name', 'position', 'size', 'mime', 'file_path', 'created_by', 'archived_at'])]
+#[Fillable(['board_id', 'parent_id', 'type', 'name', 'position', 'size', 'mime', 'file_path', 'share_token', 'created_by', 'archived_at'])]
 class ShelfNode extends Model
 {
     public const TYPE_FOLDER = 'folder';
@@ -140,6 +141,11 @@ class ShelfNode extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    public function note(): HasOne
+    {
+        return $this->hasOne(ShelfNote::class, 'node_id');
+    }
+
     public function isFolder(): bool
     {
         return $this->type === self::TYPE_FOLDER;
@@ -148,6 +154,51 @@ class ShelfNode extends Model
     public function isTrashed(): bool
     {
         return $this->archived_at !== null;
+    }
+
+    /**
+     * Whether this note is currently exposed through a public read-only link.
+     */
+    public function isShared(): bool
+    {
+        return $this->share_token !== null;
+    }
+
+    /**
+     * Mint a public share token for a note (idempotent — keeps the existing one
+     * so the link a user already copied stays valid). Only notes are shareable.
+     */
+    public function enableSharing(): void
+    {
+        if ($this->type !== self::TYPE_NOTE) {
+            return;
+        }
+
+        if ($this->share_token === null) {
+            $this->update(['share_token' => Str::random(48)]);
+        }
+    }
+
+    /**
+     * Revoke the public link. Any URL previously copied stops resolving.
+     */
+    public function disableSharing(): void
+    {
+        if ($this->share_token !== null) {
+            $this->update(['share_token' => null]);
+        }
+    }
+
+    /**
+     * Absolute URL of the public read-only page, or null when not shared.
+     */
+    public function publicUrl(): ?string
+    {
+        if ($this->share_token === null) {
+            return null;
+        }
+
+        return route('shelf.public', ['token' => $this->share_token]);
     }
 
     /**

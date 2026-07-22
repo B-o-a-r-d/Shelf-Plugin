@@ -7,6 +7,7 @@ use Board\PluginSdk\Contracts\Plugin;
 use Board\PluginSdk\PluginServiceProvider;
 use Board\PluginShelf\Http\ShelfExportController;
 use Board\PluginShelf\Http\ShelfFileController;
+use Board\PluginShelf\Http\ShelfPublicNoteController;
 use Board\PluginShelf\Livewire\ShelfShow;
 use Board\PluginShelf\Models\ShelfNode;
 use Illuminate\Console\Scheduling\Schedule;
@@ -39,6 +40,13 @@ class ShelfServiceProvider extends PluginServiceProvider
         Route::middleware(['web', 'auth'])
             ->name('shelf.export')
             ->get('/shelf/export/{node:public_id}', ShelfExportController::class);
+
+        // Public, auth-free read-only view of a shared note, resolved by its
+        // random share token. No board membership required — anyone with the
+        // link can read the rendered markdown.
+        Route::middleware(['web'])
+            ->name('shelf.public')
+            ->get('/shelf/public/{token}', ShelfPublicNoteController::class);
 
         // Presence channel of a note: who currently has it open. Authorized by
         // the host's BoardPolicy (view) on the node's board; the payload feeds

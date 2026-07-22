@@ -56,6 +56,15 @@ return [
     'import_failed' => 'L\'import de « :name » a échoué ; le fichier a été ignoré.',
     'export_md' => 'Exporter (.md)',
 
+    'share' => 'Partager',
+    'share_title' => 'Partage public',
+    'share_hint' => 'Toute personne disposant du lien peut lire cette note (lecture seule).',
+    'share_enable' => 'Créer un lien public',
+    'share_revoke' => 'Révoquer le lien',
+    'share_copy' => 'Copier',
+    'share_copied' => 'Copié',
+    'public_read_only' => 'Note partagée en lecture seule',
+
     'search_placeholder' => 'Rechercher dans l\'étagère…',
     'search_no_results' => 'Aucun résultat.',
 

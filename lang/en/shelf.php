@@ -56,6 +56,15 @@ return [
     'import_failed' => 'Importing ":name" failed; the file was skipped.',
     'export_md' => 'Export (.md)',
 
+    'share' => 'Share',
+    'share_title' => 'Public sharing',
+    'share_hint' => 'Anyone with the link can read this note (read-only).',
+    'share_enable' => 'Create a public link',
+    'share_revoke' => 'Revoke the link',
+    'share_copy' => 'Copy',
+    'share_copied' => 'Copied',
+    'public_read_only' => 'Note shared as read-only',
+
     'search_placeholder' => 'Search the shelf…',
     'search_no_results' => 'No results.',
 
