@@ -3,13 +3,15 @@
  * Shelf page by the host (ProvidesAssets). A runtime plugin can't join the host
  * build, so it ships this compiled output in dist/.
  *
- * Theme + utilities only, NO preflight: the host page already carries Tailwind's
- * base reset — re-importing it here would clobber the host's styles.
+ * The theme (design tokens like --spacing, needed to even generate the spacing
+ * utilities) is imported in its layer; the utilities themselves are UNLAYERED so
+ * they always win over the host's own @layer-ed Tailwind. Cascade-layer ordering
+ * across two independent builds is unreliable — an unlayered utility beats a
+ * layered one, so a class the host purged (e.g. top-1/2) is guaranteed to apply
+ * on the plugin page. No preflight: the host page already carries the reset.
  */
-@layer theme, base, components, utilities;
-
 @import 'tailwindcss/theme.css' layer(theme);
-@import 'tailwindcss/utilities.css' layer(utilities);
+@import 'tailwindcss/utilities.css';
 
 @source '../views';
 @source '../js';
