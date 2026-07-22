@@ -3,15 +3,16 @@
  * Shelf page by the host (ProvidesAssets). A runtime plugin can't join the host
  * build, so it ships this compiled output in dist/.
  *
- * The theme (design tokens like --spacing, needed to even generate the spacing
- * utilities) is imported in its layer; the utilities themselves are UNLAYERED so
- * they always win over the host's own @layer-ed Tailwind. Cascade-layer ordering
- * across two independent builds is unreliable — an unlayered utility beats a
- * layered one, so a class the host purged (e.g. top-1/2) is guaranteed to apply
- * on the plugin page. No preflight: the host page already carries the reset.
+ * Utilities are emitted in their normal @layer utilities: they merge into the
+ * host's own utilities layer, so a class the host purged (e.g. top-1/2) applies
+ * on the plugin page WITHOUT overriding the host UI elsewhere — duplicated
+ * classes carry identical values, so the host's topbar/navbar renders exactly
+ * as on a kanban board. (Emitting them unlayered would win over the host's own
+ * utilities and break shared chrome like the global search.) No preflight: the
+ * host page already carries Tailwind's reset.
  */
 @import 'tailwindcss/theme.css' layer(theme);
-@import 'tailwindcss/utilities.css';
+@import 'tailwindcss/utilities.css' layer(utilities);
 
 @source '../views';
 @source '../js';
