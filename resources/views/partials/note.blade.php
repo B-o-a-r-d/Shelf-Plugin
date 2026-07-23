@@ -215,16 +215,16 @@
             </div>
         @endif
 
-        {{-- Editor + optional live preview. In split mode the TipTap editor stays
-             fully editable on the left; the rendered HTML tracks it live on the
-             right, with proportional scroll-follow between the two panes. --}}
+        {{-- Editor + optional live source pane. In split mode the TipTap editor
+             stays fully editable on the left; the generated markdown source
+             tracks it live on the right, with proportional scroll-follow. --}}
         <div class="flex min-h-0 flex-1 divide-x divide-neutral-200 overflow-hidden dark:divide-neutral-800">
             <div class="min-w-0 flex-1 overflow-y-auto" x-ref="editorScroll" @scroll="syncScroll('src')">
                 <div class="js-note-mount min-h-full" x-ignore></div>
             </div>
-            <div x-show="preview" x-cloak x-ref="pvOut" @scroll="syncScroll('out')"
-                 class="tiptap markdown min-w-0 flex-1 overflow-y-auto px-6 py-4 text-sm"
-                 x-html="previewHtml"></div>
+            <pre x-show="preview" x-cloak x-ref="pvOut" @scroll="syncScroll('out')"
+                 class="m-0 min-w-0 flex-1 overflow-y-auto whitespace-pre-wrap break-words bg-neutral-50 px-4 py-4 font-mono text-xs leading-5 text-neutral-700 dark:bg-neutral-900/40 dark:text-neutral-300"
+                 x-text="previewMd"></pre>
         </div>
 
         {{-- Slash-command menu --}}

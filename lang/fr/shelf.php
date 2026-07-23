@@ -56,7 +56,7 @@ return [
     'import_failed' => 'L\'import de « :name » a échoué ; le fichier a été ignoré.',
     'export_md' => 'Exporter en Markdown (.md)',
     'export_pdf' => 'Exporter en PDF',
-    'preview_split' => 'Aperçu côte à côte (source / rendu)',
+    'preview_split' => 'Éditeur + source markdown côte à côte',
 
     'share' => 'Partager',
     'share_title' => 'Partage public',

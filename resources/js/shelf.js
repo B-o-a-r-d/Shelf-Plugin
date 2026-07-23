@@ -51,7 +51,7 @@
         typing: {},
         slash: { open: false, query: '', index: 0, x: 0, y: 0, from: 0 },
         preview: false,
-        previewHtml: '',
+        previewMd: '',
         _syncScroll: false,
         _timer: null,
         _whisperAt: 0,
@@ -319,10 +319,10 @@
         // --- Autosave ---------------------------------------------------------
 
         onUpdate() {
-            // Keep the split preview in sync with the live document (also fires
-            // for remote collab edits, so the preview follows co-authors too).
+            // Keep the split source pane in sync with the live document (also
+            // fires for remote collab edits, so it follows co-authors too).
             if (this.preview) {
-                this.previewHtml = this.editor()?.getHTML() ?? ''
+                this.previewMd = this.editor()?.storage.markdown.getMarkdown() ?? ''
             }
 
             this.updateSlash()
@@ -410,8 +410,8 @@
         // --- Split preview & PDF export ---------------------------------------
 
         // Toggle the split view: the TipTap editor stays editable on the left,
-        // a rendered HTML preview tracks it live on the right (refreshed on every
-        // edit via onUpdate). Seed the preview when opening.
+        // the generated markdown source tracks it live on the right (refreshed on
+        // every edit via onUpdate). Seed the source pane when opening.
         togglePreview() {
             this.preview = ! this.preview
 
@@ -421,7 +421,7 @@
         },
 
         refreshPreview() {
-            this.previewHtml = this.editor()?.getHTML() ?? ''
+            this.previewMd = this.editor()?.storage.markdown.getMarkdown() ?? ''
         },
 
         // Proportional scroll linking between the editor and the preview pane

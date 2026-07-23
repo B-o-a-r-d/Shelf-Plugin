@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
@@ -933,9 +934,12 @@ class ShelfShow extends Component
         $results = [];
 
         // Names: lenient in-memory substring (covers folders, files and notes;
-        // the tree is already loaded).
+        // the tree is already loaded). Accent-insensitive to match the content
+        // search — "etagere" finds "étagère".
+        $asciiQuery = Str::ascii($query);
+
         foreach ($reachable as $node) {
-            if (mb_stripos($node->name, $query) !== false) {
+            if (stripos(Str::ascii($node->name), $asciiQuery) !== false) {
                 $results[$node->id] = ['node' => $node, 'snippet' => null];
             }
         }
@@ -983,9 +987,16 @@ class ShelfShow extends Component
                 return collect();
             }
 
+            // Fold the query the same way the stored vector was folded (accents
+            // stripped), when the unaccent helper is present; otherwise match the
+            // plain vector verbatim.
+            $tsqExpr = $this->searchUsesUnaccent()
+                ? "to_tsquery('simple', shelf_immutable_unaccent(?))"
+                : "to_tsquery('simple', ?)";
+
             return $base
-                ->whereRaw("search_vector @@ to_tsquery('simple', ?)", [$tsquery])
-                ->orderByRaw("ts_rank(search_vector, to_tsquery('simple', ?)) desc", [$tsquery])
+                ->whereRaw("search_vector @@ {$tsqExpr}", [$tsquery])
+                ->orderByRaw("ts_rank(search_vector, {$tsqExpr}) desc", [$tsquery])
                 ->limit(30)
                 ->get(['node_id', 'markdown']);
         }
@@ -993,6 +1004,21 @@ class ShelfShow extends Component
         return $base
             ->whereRaw('LOWER(markdown) LIKE ?', ['%'.mb_strtolower($query).'%'])
             ->get(['node_id', 'markdown']);
+    }
+
+    /**
+     * Whether the search vector was built through the unaccent helper (present
+     * when the `unaccent` extension could be installed). Cached per request.
+     */
+    private function searchUsesUnaccent(): bool
+    {
+        static $uses = null;
+
+        if ($uses === null) {
+            $uses = DB::table('pg_proc')->where('proname', 'shelf_immutable_unaccent')->exists();
+        }
+
+        return $uses;
     }
 
     /**

@@ -56,7 +56,7 @@ return [
     'import_failed' => 'Importing ":name" failed; the file was skipped.',
     'export_md' => 'Export as Markdown (.md)',
     'export_pdf' => 'Export as PDF',
-    'preview_split' => 'Side-by-side preview (source / rendered)',
+    'preview_split' => 'Editor + markdown source side by side',
 
     'share' => 'Share',
     'share_title' => 'Public sharing',
