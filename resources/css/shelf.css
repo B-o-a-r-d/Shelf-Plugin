@@ -13,5 +13,14 @@
 @import 'tailwindcss/theme.css' layer(theme);
 @import 'tailwindcss/utilities.css' layer(plugins);
 
+/*
+ * Match the host's dark-mode strategy: `dark:` variants respond to a `.dark`
+ * class on <html> (the app's theme toggle), NOT `prefers-color-scheme`. Without
+ * this the standalone build would default to the media query, so Shelf styles
+ * (hover states, surfaces) would follow the OS instead of the applied theme —
+ * a visible mismatch on every dark/light switch. Kept identical to the host.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @source '../views';
 @source '../js';
