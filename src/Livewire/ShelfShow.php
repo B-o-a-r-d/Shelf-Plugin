@@ -15,15 +15,14 @@ use Board\PluginShelf\ShelfPlugin;
 use Board\PluginShelf\Support\LineDiff;
 use Board\PluginShelf\Support\QuotaExceededException;
 use Board\PluginShelf\Support\ShelfActivity;
+use Board\PluginShelf\Support\ShelfSearch;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
@@ -934,12 +933,9 @@ class ShelfShow extends Component
         $results = [];
 
         // Names: lenient in-memory substring (covers folders, files and notes;
-        // the tree is already loaded). Accent-insensitive to match the content
-        // search — "etagere" finds "étagère".
-        $asciiQuery = Str::ascii($query);
-
+        // the tree is already loaded), accent-insensitive like the content search.
         foreach ($reachable as $node) {
-            if (stripos(Str::ascii($node->name), $asciiQuery) !== false) {
+            if (ShelfSearch::nameMatches($node->name, $query)) {
                 $results[$node->id] = ['node' => $node, 'snippet' => null];
             }
         }
@@ -948,7 +944,7 @@ class ShelfShow extends Component
             ->filter(fn (ShelfNode $node): bool => $node->type === ShelfNode::TYPE_NOTE)
             ->pluck('id');
 
-        foreach ($this->searchNoteContents($noteIds, $query) as $match) {
+        foreach (ShelfSearch::noteContents($noteIds, $query) as $match) {
             $node = $reachable->firstWhere('id', $match->node_id);
 
             if ($node === null) {
@@ -957,103 +953,11 @@ class ShelfShow extends Component
 
             $results[$node->id] = [
                 'node' => $node,
-                'snippet' => $results[$node->id]['snippet'] ?? $this->snippet((string) $match->markdown, $query),
+                'snippet' => $results[$node->id]['snippet'] ?? ShelfSearch::snippet((string) $match->markdown, $query),
             ];
         }
 
         return array_slice(array_values($results), 0, 30);
-    }
-
-    /**
-     * Notes whose content matches the query, ranked. Postgres full-text with
-     * prefix matching where available; a portable case-insensitive LIKE
-     * otherwise (sqlite in tests).
-     *
-     * @param  Collection<int, int>  $noteIds
-     * @return Collection<int, ShelfNote>
-     */
-    private function searchNoteContents($noteIds, string $query): Collection
-    {
-        if ($noteIds->isEmpty()) {
-            return collect();
-        }
-
-        $base = ShelfNote::whereIn('node_id', $noteIds);
-
-        if (DB::connection()->getDriverName() === 'pgsql') {
-            $tsquery = $this->toPrefixTsQuery($query);
-
-            if ($tsquery === '') {
-                return collect();
-            }
-
-            // Fold the query the same way the stored vector was folded (accents
-            // stripped), when the unaccent helper is present; otherwise match the
-            // plain vector verbatim.
-            $tsqExpr = $this->searchUsesUnaccent()
-                ? "to_tsquery('simple', shelf_immutable_unaccent(?))"
-                : "to_tsquery('simple', ?)";
-
-            return $base
-                ->whereRaw("search_vector @@ {$tsqExpr}", [$tsquery])
-                ->orderByRaw("ts_rank(search_vector, {$tsqExpr}) desc", [$tsquery])
-                ->limit(30)
-                ->get(['node_id', 'markdown']);
-        }
-
-        return $base
-            ->whereRaw('LOWER(markdown) LIKE ?', ['%'.mb_strtolower($query).'%'])
-            ->get(['node_id', 'markdown']);
-    }
-
-    /**
-     * Whether the search vector was built through the unaccent helper (present
-     * when the `unaccent` extension could be installed). Cached per request.
-     */
-    private function searchUsesUnaccent(): bool
-    {
-        static $uses = null;
-
-        if ($uses === null) {
-            $uses = DB::table('pg_proc')->where('proname', 'shelf_immutable_unaccent')->exists();
-        }
-
-        return $uses;
-    }
-
-    /**
-     * Turn free text into a safe prefix tsquery — e.g. "pomm gold" becomes
-     * "pomm:* & gold:*". Only word/number tokens reach to_tsquery, so no
-     * user input can break its syntax.
-     */
-    private function toPrefixTsQuery(string $query): string
-    {
-        preg_match_all('/[\p{L}\p{N}]+/u', mb_strtolower($query), $matches);
-
-        $terms = array_slice($matches[0], 0, 6);
-
-        return implode(' & ', array_map(fn (string $term): string => $term.':*', $terms));
-    }
-
-    /**
-     * A ±60-char plain-text snippet around the first matching term in the note.
-     */
-    private function snippet(string $markdown, string $query): string
-    {
-        $position = mb_stripos($markdown, $query);
-
-        if ($position === false) {
-            // The tsquery matched a prefix — locate the first query word.
-            preg_match('/[\p{L}\p{N}]+/u', $query, $word);
-            $position = $word !== [] ? mb_stripos($markdown, $word[0]) : false;
-        }
-
-        $position = $position === false ? 0 : $position;
-        $start = max(0, $position - 60);
-
-        return ($start > 0 ? '…' : '')
-            .trim(mb_substr($markdown, $start, 120 + mb_strlen($query)))
-            .'…';
     }
 
     /**

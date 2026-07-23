@@ -10,8 +10,13 @@ use Board\PluginSdk\Contracts\ProvidesMcpTools;
 use Board\PluginSdk\Contracts\ProvidesSettings;
 use Board\PluginSdk\Support\PluginSettings;
 use Board\PluginShelf\Mcp\ShelfCreateNodeTool;
+use Board\PluginShelf\Mcp\ShelfDeleteNodeTool;
 use Board\PluginShelf\Mcp\ShelfMoveNodeTool;
 use Board\PluginShelf\Mcp\ShelfReadNoteTool;
+use Board\PluginShelf\Mcp\ShelfRenameNodeTool;
+use Board\PluginShelf\Mcp\ShelfRestoreNodeTool;
+use Board\PluginShelf\Mcp\ShelfSearchTool;
+use Board\PluginShelf\Mcp\ShelfTrashNodeTool;
 use Board\PluginShelf\Mcp\ShelfTreeTool;
 use Board\PluginShelf\Mcp\ShelfWriteNoteTool;
 
@@ -148,10 +153,15 @@ class ShelfPlugin implements DefinesActivities, Plugin, ProvidesAssets, Provides
     {
         return [
             ShelfTreeTool::class,
+            ShelfSearchTool::class,
             ShelfReadNoteTool::class,
             ShelfWriteNoteTool::class,
             ShelfCreateNodeTool::class,
+            ShelfRenameNodeTool::class,
             ShelfMoveNodeTool::class,
+            ShelfTrashNodeTool::class,
+            ShelfRestoreNodeTool::class,
+            ShelfDeleteNodeTool::class,
         ];
     }
 

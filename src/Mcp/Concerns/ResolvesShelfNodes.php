@@ -36,6 +36,22 @@ trait ResolvesShelfNodes
         return $node;
     }
 
+    /**
+     * Resolve a node by public id regardless of its trash state (for restore /
+     * permanent delete, which act on trashed nodes), still scoped to a Shelf
+     * board the user can access.
+     */
+    protected function boardNode(string $publicId): ?ShelfNode
+    {
+        $node = ShelfNode::where('public_id', $publicId)->first();
+
+        if ($node === null || $node->board === null || $this->shelfBoard($node->board->public_id) === null) {
+            return null;
+        }
+
+        return $node;
+    }
+
     protected function userCanWrite(Board $board): bool
     {
         $user = Auth::user();
