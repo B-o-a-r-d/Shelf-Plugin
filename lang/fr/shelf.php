@@ -69,6 +69,23 @@ return [
     'share_error' => 'L\'opération a échoué, réessayez.',
     'public_read_only' => 'Note partagée en lecture seule',
 
+    'comment' => 'commentaire',
+    'comments' => 'Commentaires',
+    'comment_add' => 'Commenter',
+    'comment_placeholder' => 'Votre commentaire…',
+    'comment_submit' => 'Commenter',
+    'comment_cancel' => 'Annuler',
+    'comment_reply_placeholder' => 'Répondre…',
+    'comment_reply' => 'Répondre',
+    'comment_resolve' => 'Résoudre',
+    'comment_reopen' => 'Rouvrir',
+    'comment_delete' => 'Supprimer',
+    'comment_resolved' => 'Résolu',
+    'comment_resolved_by' => 'Résolu par :name',
+    'comment_empty' => 'Aucun commentaire. Sélectionnez du texte dans la note pour en ajouter un.',
+    'comment_orphaned' => 'Texte commenté modifié ou supprimé',
+    'activity_comment_added' => 'a commenté « :name »',
+
     'search_placeholder' => 'Rechercher dans l\'étagère…',
     'search_no_results' => 'Aucun résultat.',
 

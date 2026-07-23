@@ -189,6 +189,7 @@ class ShelfPlugin implements DefinesActivities, Plugin, ProvidesAssets, Provides
             'shelf.node_deleted',
             'shelf.note_edited',
             'shelf.file_uploaded',
+            'shelf.comment_added',
         ];
     }
 
@@ -205,6 +206,7 @@ class ShelfPlugin implements DefinesActivities, Plugin, ProvidesAssets, Provides
             'shelf.node_deleted' => __('shelf::shelf.activity_deleted', ['name' => $name]),
             'shelf.note_edited' => __('shelf::shelf.activity_note_edited', ['name' => $name]),
             'shelf.file_uploaded' => __('shelf::shelf.activity_file_uploaded', ['name' => $name]),
+            'shelf.comment_added' => __('shelf::shelf.activity_comment_added', ['name' => $name]),
             default => null,
         };
     }

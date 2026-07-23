@@ -17,15 +17,116 @@
     // register() would then no-op and the tables extension would be missing.
     // Registering inside init(), after boardTiptap.load() resolves, guarantees
     // the registry is present; register() is idempotent so re-mounts are free.
-    const registerShelfExtensions = () => window.boardTiptap.register('shelf', ({ tables, image }) => [
-        tables.Table.configure({ resizable: false }),
-        tables.TableRow,
-        tables.TableHeader,
-        tables.TableCell,
-        // Inline images embedded in the markdown as ![](url); base64 disabled —
-        // images are uploaded and referenced by URL, never inlined into content.
-        image.Image.configure({ inline: false, allowBase64: false }),
-    ])
+    // Build a plain-text index of the doc with a position map (char -> PM pos),
+    // inserting a sentinel (-1) between blocks so a quote never spans blocks.
+    const textIndex = (doc) => {
+        let text = ''
+        const map = []
+        let first = true
+        doc.nodesBetween(0, doc.content.size, (node, pos) => {
+            if (node.isText) {
+                for (let i = 0; i < node.text.length; i++) {
+                    text += node.text[i]
+                    map.push(pos + i)
+                }
+            } else if (node.isBlock) {
+                if (! first) {
+                    text += '\n'
+                    map.push(-1)
+                }
+                first = false
+            }
+            return true
+        })
+        return { text, map }
+    }
+
+    // Locate an anchor's quote in the doc → { from, to } PM range, or null.
+    const findRange = (doc, quote) => {
+        if (! quote) {
+            return null
+        }
+        const { text, map } = textIndex(doc)
+        const idx = text.indexOf(quote)
+        if (idx === -1) {
+            return null
+        }
+        const from = map[idx]
+        const to = map[idx + quote.length - 1]
+        if (from < 0 || to < 0) {
+            return null // spans a block boundary
+        }
+        return { from, to: to + 1 }
+    }
+
+    // TipTap extension: view-only decorations highlighting commented ranges.
+    // Anchors + focus + click handler are read from editor.storage.shelfComments
+    // (kept in sync by the Alpine component); nothing is written to the doc.
+    const buildCommentExtension = (mods) => {
+        const { Extension } = mods
+        const { Plugin, PluginKey, Decoration, DecorationSet } = mods.pm
+        const key = new PluginKey('shelfComments')
+
+        return Extension.create({
+            name: 'shelfComments',
+
+            addStorage() {
+                return { anchors: [], focused: null, onClick: null }
+            },
+
+            addProseMirrorPlugins() {
+                const storage = () => this.editor.storage.shelfComments
+
+                return [new Plugin({
+                    key,
+                    props: {
+                        decorations: (state) => {
+                            const { anchors, focused } = storage()
+                            const decos = []
+                            for (const a of anchors || []) {
+                                const range = findRange(state.doc, a.quote)
+                                if (! range) {
+                                    continue
+                                }
+                                decos.push(Decoration.inline(range.from, range.to, {
+                                    class: 'shelf-comment-mark' + (a.id === focused ? ' shelf-comment-mark--active' : ''),
+                                    'data-comment': String(a.id),
+                                }))
+                            }
+                            return DecorationSet.create(state.doc, decos)
+                        },
+                        handleClick: (view, pos) => {
+                            const { anchors, onClick } = storage()
+                            for (const a of anchors || []) {
+                                const range = findRange(view.state.doc, a.quote)
+                                if (range && pos >= range.from && pos < range.to) {
+                                    onClick?.(a.id)
+                                    return true
+                                }
+                            }
+                            return false
+                        },
+                    },
+                })]
+            },
+        })
+    }
+
+    const registerShelfExtensions = () => window.boardTiptap.register('shelf', (mods) => {
+        const { tables, image } = mods
+
+        return [
+            tables.Table.configure({ resizable: false }),
+            tables.TableRow,
+            tables.TableHeader,
+            tables.TableCell,
+            // Inline images embedded in the markdown as ![](url); base64 disabled —
+            // images are uploaded and referenced by URL, never inlined into content.
+            image.Image.configure({ inline: false, allowBase64: false }),
+            // Google-Docs-style comment highlights (decorations only, no marks).
+            buildCommentExtension(mods),
+        ]
+    })
 
     const COLORS = ['#f97316', '#8b5cf6', '#06b6d4', '#10b981', '#ef4444', '#eab308', '#ec4899', '#3b82f6']
 
@@ -55,6 +156,7 @@
         slash: { open: false, query: '', index: 0, x: 0, y: 0, from: 0 },
         preview: false,
         previewMd: '',
+        commentBubble: { show: false, x: 0, y: 0, quote: '', prefix: '', start: null },
         _syncScroll: false,
         _timer: null,
         _whisperAt: 0,
@@ -118,6 +220,7 @@
                     handleDrop: (view, event, slice, moved) => this.onDropImage(view, event, moved),
                 },
                 onUpdate: () => this.onUpdate(),
+                onSelectionUpdate: () => this.onSelectionUpdate(),
             })
 
             if (this.collab) {
@@ -137,6 +240,17 @@
                 this.markSaved()
                 this.sendJson('shelf-saved', { version: detail.version })
             })
+
+            // Comment highlights: bridge anchors/focus/click into the extension's
+            // storage, load the note's anchors, and refresh on any change (local
+            // or remote) so decorations track the comments live.
+            const cstore = this.editor()?.storage?.shelfComments
+            if (cstore) {
+                cstore.onClick = (id) => this.$wire.focusComment(id)
+            }
+            this.loadCommentAnchors()
+            this.$wire.on('shelf-comments-updated', () => this.loadCommentAnchors())
+            this.$wire.on('shelf-focus-comment', (e) => this.focusCommentInEditor((e ?? {}).id))
 
             this._prune = setInterval(() => {
                 const now = Date.now()
@@ -507,6 +621,84 @@
                 return (await res.json()).url ?? null
             } catch (e) {
                 return null
+            }
+        },
+
+        // --- Comments (Google-Docs-style) -------------------------------------
+
+        // On selection change, offer a "Comment" bubble above the selection;
+        // capture the quote + a short prefix (to disambiguate repeats) as anchor.
+        onSelectionUpdate() {
+            const editor = this.editor()
+            if (! editor || ! this.canWrite) {
+                this.commentBubble.show = false
+
+                return
+            }
+
+            const { from, to } = editor.state.selection
+            const quote = from === to ? '' : editor.state.doc.textBetween(from, to, ' ', ' ').trim()
+
+            if (! quote) {
+                this.commentBubble.show = false
+
+                return
+            }
+
+            const coords = editor.view.coordsAtPos(from)
+
+            this.commentBubble = {
+                show: true,
+                x: Math.min(coords.left, window.innerWidth - 150),
+                y: coords.top - 42,
+                quote,
+                prefix: editor.state.doc.textBetween(Math.max(0, from - 64), from, ' ', ' '),
+                start: from,
+            }
+        },
+
+        commentSelection() {
+            const b = this.commentBubble
+            if (b.quote) {
+                this.$wire.startComment(b.quote, b.prefix, b.start)
+            }
+            this.commentBubble.show = false
+        },
+
+        async loadCommentAnchors() {
+            const store = this.editor()?.storage?.shelfComments
+            if (! store) {
+                return
+            }
+
+            try {
+                store.anchors = await this.$wire.commentAnchors(opts.nodeId)
+            } catch (e) {
+                store.anchors = []
+            }
+
+            this.refreshDecorations()
+        },
+
+        refreshDecorations() {
+            const editor = this.editor()
+            if (editor) {
+                editor.view.dispatch(editor.state.tr)
+            }
+        },
+
+        focusCommentInEditor(id) {
+            const store = this.editor()?.storage?.shelfComments
+            if (! store) {
+                return
+            }
+
+            store.focused = id ?? null
+            this.refreshDecorations()
+
+            const el = this.$root.querySelector(`.shelf-comment-mark[data-comment="${id}"]`)
+            if (el) {
+                el.scrollIntoView({ block: 'center', behavior: 'smooth' })
             }
         },
 

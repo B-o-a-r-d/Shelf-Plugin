@@ -69,6 +69,23 @@ return [
     'share_error' => 'The operation failed, please retry.',
     'public_read_only' => 'Note shared as read-only',
 
+    'comment' => 'comment',
+    'comments' => 'Comments',
+    'comment_add' => 'Comment',
+    'comment_placeholder' => 'Your comment…',
+    'comment_submit' => 'Comment',
+    'comment_cancel' => 'Cancel',
+    'comment_reply_placeholder' => 'Reply…',
+    'comment_reply' => 'Reply',
+    'comment_resolve' => 'Resolve',
+    'comment_reopen' => 'Reopen',
+    'comment_delete' => 'Delete',
+    'comment_resolved' => 'Resolved',
+    'comment_resolved_by' => 'Resolved by :name',
+    'comment_empty' => 'No comments yet. Select text in the note to add one.',
+    'comment_orphaned' => 'Commented text changed or deleted',
+    'activity_comment_added' => 'commented on ":name"',
+
     'search_placeholder' => 'Search the shelf…',
     'search_no_results' => 'No results.',
 

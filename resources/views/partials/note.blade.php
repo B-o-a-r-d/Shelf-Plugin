@@ -166,6 +166,14 @@
                     <x-phosphor-file-pdf-duotone class="h-4 w-4" />
                 </button>
 
+                <button type="button" wire:click="toggleComments"
+                        class="inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs {{ $showComments ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-500/40 dark:bg-indigo-500/10 dark:text-indigo-300' : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800' }}">
+                    <x-phosphor-chat-circle-text class="h-3.5 w-3.5" /> {{ __('shelf::shelf.comments') }}
+                    @if ($comments->isNotEmpty())
+                        <span class="rounded-full bg-neutral-200 px-1.5 text-[10px] text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300">{{ $comments->count() }}</span>
+                    @endif
+                </button>
+
                 <button type="button" wire:click="toggleHistory"
                         class="inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs {{ $showHistory ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-500/40 dark:bg-indigo-500/10 dark:text-indigo-300' : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800' }}">
                     <x-phosphor-clock-counter-clockwise class="h-3.5 w-3.5" /> {{ __('shelf::shelf.history') }}
@@ -249,7 +257,25 @@
                 </template>
             </div>
         </template>
+
+        {{-- "Comment" bubble above the current text selection (mousedown, so the
+             selection isn't cleared before the handler captures the anchor). --}}
+        @if ($canWrite)
+            <template x-teleport="body">
+                <button type="button" x-show="commentBubble.show" x-cloak
+                        @mousedown.prevent="commentSelection()"
+                        :style="`top: ${commentBubble.y}px; left: ${commentBubble.x}px;`"
+                        class="fixed z-[70] inline-flex items-center gap-1 rounded-lg bg-neutral-900 px-2.5 py-1 text-xs font-medium text-white shadow-lg dark:bg-neutral-700">
+                    <x-phosphor-chat-teardrop-text class="h-3.5 w-3.5" /> {{ __('shelf::shelf.comment_add') }}
+                </button>
+            </template>
+        @endif
     </div>
+
+    {{-- Comments panel (Google-Docs-style anchored comments) --}}
+    @if ($showComments)
+        @include('shelf::partials.comments')
+    @endif
 
     {{-- Revision history panel --}}
     @if ($showHistory)

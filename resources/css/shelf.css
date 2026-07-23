@@ -24,3 +24,26 @@
 
 @source '../views';
 @source '../js';
+
+/*
+ * Comment highlight decorations (applied by the shelfComments TipTap extension,
+ * not stored marks). Amber underline; the focused thread's anchor is stronger.
+ */
+.shelf-comment-mark {
+    background-color: color-mix(in srgb, #facc15 26%, transparent);
+    border-bottom: 2px solid color-mix(in srgb, #eab308 70%, transparent);
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.shelf-comment-mark--active {
+    background-color: color-mix(in srgb, #facc15 52%, transparent);
+}
+
+.dark .shelf-comment-mark {
+    background-color: color-mix(in srgb, #eab308 22%, transparent);
+}
+
+.dark .shelf-comment-mark--active {
+    background-color: color-mix(in srgb, #eab308 44%, transparent);
+}

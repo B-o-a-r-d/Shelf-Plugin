@@ -6,10 +6,12 @@ use App\Enums\BoardVisibility;
 use App\Models\Board;
 use Board\PluginSdk\Contracts\ProvidesBoardType;
 use Board\PluginSdk\PluginRegistry;
+use Board\PluginShelf\Events\ShelfCommentsUpdated;
 use Board\PluginShelf\Events\ShelfTreeUpdated;
 use Board\PluginShelf\Models\ShelfBoard;
 use Board\PluginShelf\Models\ShelfNode;
 use Board\PluginShelf\Models\ShelfNote;
+use Board\PluginShelf\Models\ShelfNoteComment;
 use Board\PluginShelf\Models\ShelfNoteRevision;
 use Board\PluginShelf\ShelfPlugin;
 use Board\PluginShelf\Support\LineDiff;
@@ -91,6 +93,23 @@ class ShelfShow extends Component
     /** @var array<int, string> */
     public array $importChoices = [];
 
+    /** Comments panel (Google-Docs-style anchored comments on the note). */
+    public bool $showComments = false;
+
+    public ?int $focusedCommentId = null;
+
+    /** Pending anchor captured from the editor selection before composing. */
+    public ?string $pendingQuote = null;
+
+    public ?string $pendingPrefix = null;
+
+    public ?int $pendingStart = null;
+
+    public string $commentDraft = '';
+
+    /** @var array<int, string> Reply body per root comment id. */
+    public array $replyDrafts = [];
+
     public function mount(Board $board): void
     {
         Gate::authorize('view', $board);
@@ -112,7 +131,14 @@ class ShelfShow extends Component
     {
         return [
             "echo-private:board.{$this->board->id},.shelf.tree" => '$refresh',
+            "echo-private:board.{$this->board->id},.shelf.comments" => 'onRemoteComments',
         ];
+    }
+
+    /** A comment changed elsewhere — re-render and let the editor refresh its highlights. */
+    public function onRemoteComments(): void
+    {
+        $this->dispatch('shelf-comments-updated');
     }
 
     // --- Selection & inline forms ----------------------------------------------
@@ -772,6 +798,178 @@ class ShelfShow extends Component
         );
     }
 
+    // --- Comments (Google-Docs-style, anchored to quoted text) ------------------
+
+    public function toggleComments(): void
+    {
+        $this->showComments = ! $this->showComments;
+
+        if (! $this->showComments) {
+            $this->cancelComment();
+            $this->focusedCommentId = null;
+        }
+    }
+
+    /**
+     * Capture the editor's current text selection as the anchor of a new
+     * comment, then open the panel with the compose box.
+     */
+    public function startComment(string $quote, ?string $prefix, ?int $start): void
+    {
+        abort_unless($this->canWrite, 403);
+
+        $quote = trim($quote);
+
+        if ($quote === '') {
+            return;
+        }
+
+        $this->pendingQuote = mb_substr($quote, 0, 2000);
+        $this->pendingPrefix = $prefix !== null ? mb_substr($prefix, 0, 64) : null;
+        $this->pendingStart = $start;
+        $this->commentDraft = '';
+        $this->showComments = true;
+    }
+
+    public function cancelComment(): void
+    {
+        $this->pendingQuote = null;
+        $this->pendingPrefix = null;
+        $this->pendingStart = null;
+        $this->commentDraft = '';
+    }
+
+    public function submitComment(): void
+    {
+        abort_unless($this->canWrite, 403);
+
+        if ($this->selectedNodeId === null || $this->pendingQuote === null) {
+            return;
+        }
+
+        $this->validate(['commentDraft' => 'required|string|max:5000'], [], ['commentDraft' => __('shelf::shelf.comment')]);
+
+        $node = $this->node($this->selectedNodeId);
+
+        abort_unless($node->type === ShelfNode::TYPE_NOTE, 422);
+
+        $comment = ShelfNoteComment::create([
+            'board_id' => $this->board->id,
+            'note_id' => $node->id,
+            'anchor_quote' => $this->pendingQuote,
+            'anchor_prefix' => $this->pendingPrefix,
+            'anchor_start' => $this->pendingStart,
+            'body' => trim($this->commentDraft),
+            'created_by' => Auth::id(),
+        ]);
+
+        ShelfActivity::log($this->board, 'shelf.comment_added', $node);
+
+        $this->cancelComment();
+        $this->focusedCommentId = $comment->id;
+        $this->touchComments($node->id);
+    }
+
+    public function replyToComment(int $rootId): void
+    {
+        abort_unless($this->canWrite, 403);
+
+        $root = $this->noteComment($rootId);
+        $body = trim($this->replyDrafts[$rootId] ?? '');
+
+        if ($body === '' || ! $root->isRoot()) {
+            return;
+        }
+
+        ShelfNoteComment::create([
+            'board_id' => $this->board->id,
+            'note_id' => $root->note_id,
+            'parent_id' => $root->id,
+            'body' => mb_substr($body, 0, 5000),
+            'created_by' => Auth::id(),
+        ]);
+
+        $this->replyDrafts[$rootId] = '';
+        $this->touchComments($root->note_id);
+    }
+
+    public function resolveComment(int $id): void
+    {
+        abort_unless($this->canWrite, 403);
+
+        $comment = $this->noteComment($id);
+        $comment->update(['resolved_at' => now(), 'resolved_by' => Auth::id()]);
+
+        $this->touchComments($comment->note_id);
+    }
+
+    public function reopenComment(int $id): void
+    {
+        abort_unless($this->canWrite, 403);
+
+        $comment = $this->noteComment($id);
+        $comment->update(['resolved_at' => null, 'resolved_by' => null]);
+
+        $this->touchComments($comment->note_id);
+    }
+
+    public function deleteComment(int $id): void
+    {
+        $comment = $this->noteComment($id);
+
+        abort_unless($this->canManage || $comment->created_by === Auth::id(), 403);
+
+        $noteId = $comment->note_id;
+        $comment->delete();
+
+        $this->touchComments($noteId);
+    }
+
+    public function focusComment(int $id): void
+    {
+        $this->focusedCommentId = $this->noteComment($id)->id;
+        $this->showComments = true;
+        $this->dispatch('shelf-focus-comment', id: $this->focusedCommentId);
+    }
+
+    /**
+     * Anchors of the note's unresolved root comments, for the editor to draw its
+     * highlight decorations. Public — the editor calls it through $wire.
+     *
+     * @return array<int, array{id: int, quote: string, prefix: string|null, start: int|null}>
+     */
+    public function commentAnchors(?int $nodeId = null): array
+    {
+        $nodeId ??= $this->selectedNodeId;
+
+        if ($nodeId === null) {
+            return [];
+        }
+
+        return ShelfNoteComment::where('note_id', $nodeId)
+            ->whereNull('parent_id')
+            ->whereNull('resolved_at')
+            ->get()
+            ->map(fn (ShelfNoteComment $c): array => [
+                'id' => $c->id,
+                'quote' => (string) $c->anchor_quote,
+                'prefix' => $c->anchor_prefix,
+                'start' => $c->anchor_start,
+            ])
+            ->all();
+    }
+
+    private function noteComment(int $id): ShelfNoteComment
+    {
+        return ShelfNoteComment::where('board_id', $this->board->id)->findOrFail($id);
+    }
+
+    private function touchComments(int $noteId): void
+    {
+        $this->dispatch('shelf-comments-updated');
+        broadcast(new ShelfCommentsUpdated($this->board->id, $noteId))->toOthers();
+    }
+
     // --- Public sharing ---------------------------------------------------------
 
     /**
@@ -854,9 +1052,16 @@ class ShelfShow extends Component
         $revisions = collect();
         $viewingRevision = null;
         $revisionDiff = [];
+        $comments = collect();
 
         if ($selected?->type === ShelfNode::TYPE_NOTE) {
             $note = ShelfNote::firstWhere('node_id', $selected->id);
+
+            $comments = ShelfNoteComment::where('note_id', $selected->id)
+                ->whereNull('parent_id')
+                ->with(['author', 'resolver', 'replies.author'])
+                ->orderBy('created_at')
+                ->get();
 
             if ($this->showHistory) {
                 $revisions = $note?->revisions()->with('creator')->get() ?? collect();
@@ -885,6 +1090,7 @@ class ShelfShow extends Component
             'revisions' => $revisions,
             'viewingRevision' => $viewingRevision,
             'revisionDiff' => $revisionDiff,
+            'comments' => $comments,
             // Board navbar (same anatomy as the kanban header): every board of
             // the workspace this user can open, each routed to its surface.
             'switcherBoards' => $this->board->workspace->boards()
