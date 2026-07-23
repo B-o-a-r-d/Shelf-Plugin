@@ -181,9 +181,9 @@
             <span>{{ __('shelf::shelf.quota_exceeded') }}</span>
         </div>
 
-        {{-- Toolbar --}}
+        {{-- Toolbar (stays available in split mode — the left pane is editable) --}}
         @if ($canWrite)
-            <div x-show="! preview" class="flex flex-wrap items-center gap-0.5 border-b border-neutral-200 px-2 py-1 dark:border-neutral-800">
+            <div class="flex flex-wrap items-center gap-0.5 border-b border-neutral-200 px-2 py-1 dark:border-neutral-800">
                 <button type="button" @click="run('toggleBold')" :class="isActive('bold') && 'bg-neutral-200 dark:bg-neutral-700'" class="{{ $tbBtn }} font-bold" title="{{ __('shelf::shelf.tb_bold') }}">B</button>
                 <button type="button" @click="run('toggleItalic')" :class="isActive('italic') && 'bg-neutral-200 dark:bg-neutral-700'" class="{{ $tbBtn }} italic" title="{{ __('shelf::shelf.tb_italic') }}">I</button>
                 <button type="button" @click="run('toggleStrike')" :class="isActive('strike') && 'bg-neutral-200 dark:bg-neutral-700'" class="{{ $tbBtn }} line-through" title="{{ __('shelf::shelf.tb_strike') }}">S</button>
@@ -215,19 +215,15 @@
             </div>
         @endif
 
-        {{-- Editor mount (hidden while the split preview is on) --}}
-        <div class="min-h-0 flex-1 overflow-hidden" x-show="! preview">
-            <div class="js-note-mount h-full overflow-y-auto" x-ignore></div>
-        </div>
-
-        {{-- Split preview: markdown source (left) + rendered HTML (right), with
-             proportional scroll-follow between the two panes. --}}
-        <div x-show="preview" x-cloak class="grid min-h-0 flex-1 grid-cols-2 divide-x divide-neutral-200 dark:divide-neutral-800">
-            <pre x-ref="pvSrc" @scroll="syncScroll('src')"
-                 class="m-0 overflow-auto whitespace-pre-wrap break-words bg-neutral-50 px-4 py-4 font-mono text-xs leading-5 text-neutral-700 dark:bg-neutral-900/40 dark:text-neutral-300"
-                 x-text="previewMd"></pre>
-            <div x-ref="pvOut" @scroll="syncScroll('out')"
-                 class="tiptap markdown overflow-auto px-6 py-4 text-sm"
+        {{-- Editor + optional live preview. In split mode the TipTap editor stays
+             fully editable on the left; the rendered HTML tracks it live on the
+             right, with proportional scroll-follow between the two panes. --}}
+        <div class="flex min-h-0 flex-1 divide-x divide-neutral-200 overflow-hidden dark:divide-neutral-800">
+            <div class="min-w-0 flex-1 overflow-y-auto" x-ref="editorScroll" @scroll="syncScroll('src')">
+                <div class="js-note-mount min-h-full" x-ignore></div>
+            </div>
+            <div x-show="preview" x-cloak x-ref="pvOut" @scroll="syncScroll('out')"
+                 class="tiptap markdown min-w-0 flex-1 overflow-y-auto px-6 py-4 text-sm"
                  x-html="previewHtml"></div>
         </div>
 

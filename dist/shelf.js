@@ -51,7 +51,6 @@
         typing: {},
         slash: { open: false, query: '', index: 0, x: 0, y: 0, from: 0 },
         preview: false,
-        previewMd: '',
         previewHtml: '',
         _syncScroll: false,
         _timer: null,
@@ -320,6 +319,12 @@
         // --- Autosave ---------------------------------------------------------
 
         onUpdate() {
+            // Keep the split preview in sync with the live document (also fires
+            // for remote collab edits, so the preview follows co-authors too).
+            if (this.preview) {
+                this.previewHtml = this.editor()?.getHTML() ?? ''
+            }
+
             this.updateSlash()
 
             if (! this.canWrite || this._seeding || this.status === 'conflict') {
@@ -404,35 +409,31 @@
 
         // --- Split preview & PDF export ---------------------------------------
 
-        // Toggle the read-only split view: markdown source (left) + rendered
-        // HTML (right). Content is snapshotted from the editor at toggle time
-        // (editing happens in the WYSIWYG mode, hidden while previewing).
+        // Toggle the split view: the TipTap editor stays editable on the left,
+        // a rendered HTML preview tracks it live on the right (refreshed on every
+        // edit via onUpdate). Seed the preview when opening.
         togglePreview() {
+            this.preview = ! this.preview
+
             if (this.preview) {
-                this.preview = false
-
-                return
+                this.refreshPreview()
             }
-
-            const editor = this.editor()
-            if (! editor) {
-                return
-            }
-
-            this.previewMd = editor.storage.markdown.getMarkdown()
-            this.previewHtml = editor.getHTML()
-            this.preview = true
         },
 
-        // Proportional scroll linking between the two panes ("follow"), guarded
-        // against the feedback loop the mirrored scroll would otherwise cause.
+        refreshPreview() {
+            this.previewHtml = this.editor()?.getHTML() ?? ''
+        },
+
+        // Proportional scroll linking between the editor and the preview pane
+        // ("follow"), guarded against the feedback loop the mirrored scroll would
+        // otherwise cause.
         syncScroll(from) {
             if (this._syncScroll) {
                 return
             }
 
-            const a = from === 'src' ? this.$refs.pvSrc : this.$refs.pvOut
-            const b = from === 'src' ? this.$refs.pvOut : this.$refs.pvSrc
+            const a = from === 'src' ? this.$refs.editorScroll : this.$refs.pvOut
+            const b = from === 'src' ? this.$refs.pvOut : this.$refs.editorScroll
             if (! a || ! b) {
                 return
             }
