@@ -54,7 +54,9 @@ return [
     'import_confirm' => 'Importer',
     'import_running' => 'Import en cours…',
     'import_failed' => 'L\'import de « :name » a échoué ; le fichier a été ignoré.',
-    'export_md' => 'Exporter (.md)',
+    'export_md' => 'Exporter en Markdown (.md)',
+    'export_pdf' => 'Exporter en PDF',
+    'preview_split' => 'Aperçu côte à côte (source / rendu)',
 
     'share' => 'Partager',
     'share_title' => 'Partage public',

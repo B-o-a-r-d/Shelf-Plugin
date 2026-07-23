@@ -54,7 +54,9 @@ return [
     'import_confirm' => 'Import',
     'import_running' => 'Importing…',
     'import_failed' => 'Importing ":name" failed; the file was skipped.',
-    'export_md' => 'Export (.md)',
+    'export_md' => 'Export as Markdown (.md)',
+    'export_pdf' => 'Export as PDF',
+    'preview_split' => 'Side-by-side preview (source / rendered)',
 
     'share' => 'Share',
     'share_title' => 'Public sharing',

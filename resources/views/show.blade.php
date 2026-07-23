@@ -1,4 +1,4 @@
-<div class="-mb-8 flex h-[calc(100dvh-6rem)] flex-col" x-data="{ dragId: null }">
+<div class="-mb-8 flex h-[calc(100dvh-6rem)] flex-col" x-data="{ dragId: null, insBefore: null }">
     {{-- Shelf's pre-built CSS + JS (compiled in dist/), served by the host and
          loaded once. Carries the plugin-specific Tailwind classes the host build
          purges, and registers the note editor's Alpine component. --}}
@@ -183,13 +183,40 @@
                 </div>
             @endif
 
-            {{-- Root drop zone: the whole tree pane accepts a drop to move to root --}}
+            {{-- Root drop zone: the whole tree pane accepts a drop to move to
+                 root. Right-click on blank space (not on a node — those carry
+                 their own menu) opens a quick "new folder / note at root" menu. --}}
             <div class="min-h-0 flex-1 overflow-y-auto p-2"
+                 x-data="{ rcOpen: false, rcX: 0, rcY: 0, openRootMenu(e) {
+                     if (e.target.closest('[data-shelf-node]')) { return; }
+                     e.preventDefault();
+                     this.rcX = Math.min(e.clientX, window.innerWidth - 190);
+                     this.rcY = e.clientY;
+                     this.rcOpen = true;
+                 } }"
                  @if ($canWrite)
+                     @contextmenu="openRootMenu($event)"
                      @dragover.prevent
-                     @drop.prevent="if (dragId !== null) { $wire.moveNode(dragId, null); dragId = null; }"
+                     @drop.prevent="if (dragId !== null) { $wire.moveNode(dragId, null); dragId = null; insBefore = null; }"
                  @endif
             >
+                @if ($canWrite)
+                    <template x-teleport="body">
+                        <div x-show="rcOpen" x-cloak x-transition.opacity.duration.100ms
+                             @click.outside="rcOpen = false" @keydown.escape.window="rcOpen = false"
+                             :style="`top: ${rcY}px; left: ${rcX}px;`"
+                             class="fixed z-[60] min-w-[11rem] rounded-lg border border-neutral-200 bg-white p-1 text-sm text-neutral-800 shadow-lg dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
+                            <button type="button" @click="rcOpen = false; $wire.startCreating('folder')"
+                                    class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-700/60">
+                                <x-phosphor-folder-plus class="h-4 w-4 text-neutral-500 dark:text-neutral-400" /> {{ __('shelf::shelf.new_folder') }}
+                            </button>
+                            <button type="button" @click="rcOpen = false; $wire.startCreating('note')"
+                                    class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-700/60">
+                                <x-phosphor-note-pencil class="h-4 w-4 text-neutral-500 dark:text-neutral-400" /> {{ __('shelf::shelf.new_note') }}
+                            </button>
+                        </div>
+                    </template>
+                @endif
                 @if (mb_strlen(trim($search)) >= 2)
                     {{-- Search results replace the tree while a query is typed --}}
                     @forelse ($searchResults as $result)

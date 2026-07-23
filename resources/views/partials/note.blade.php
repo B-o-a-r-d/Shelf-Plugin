@@ -13,6 +13,7 @@
          wire:key="note-editor-{{ $selectedNode->id }}"
          x-data="shelfNoteEditor(@js([
              'nodeId' => $selectedNode->id,
+             'noteName' => $selectedNode->name,
              'markdown' => (string) $note?->markdown,
              'version' => $note?->version ?? 0,
              'canWrite' => $canWrite,
@@ -142,11 +143,24 @@
                     </div>
                 @endif
 
+                {{-- Split preview: markdown source (left) + rendered HTML (right) --}}
+                <button type="button" @click="togglePreview()"
+                        :class="preview ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-500/40 dark:bg-indigo-500/10 dark:text-indigo-300' : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800'"
+                        class="inline-flex h-7 w-7 items-center justify-center rounded-lg border" title="{{ __('shelf::shelf.preview_split') }}">
+                    <x-phosphor-square-split-horizontal class="h-4 w-4" />
+                </button>
+
+                {{-- Exports: markdown (route) + PDF (client-side print, no infra dep) --}}
                 <a href="{{ route('shelf.export', $selectedNode) }}"
-                   class="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                   class="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
                    title="{{ __('shelf::shelf.export_md') }}">
-                    <x-phosphor-export class="h-3.5 w-3.5" /> {{ __('shelf::shelf.export_md') }}
+                    <x-phosphor-file-md class="h-4 w-4" />
                 </a>
+                <button type="button" @click="exportPdf()"
+                        class="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                        title="{{ __('shelf::shelf.export_pdf') }}">
+                    <x-phosphor-file-pdf-duotone class="h-4 w-4" />
+                </button>
 
                 <button type="button" wire:click="toggleHistory"
                         class="inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs {{ $showHistory ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-500/40 dark:bg-indigo-500/10 dark:text-indigo-300' : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800' }}">
@@ -169,7 +183,7 @@
 
         {{-- Toolbar --}}
         @if ($canWrite)
-            <div class="flex flex-wrap items-center gap-0.5 border-b border-neutral-200 px-2 py-1 dark:border-neutral-800">
+            <div x-show="! preview" class="flex flex-wrap items-center gap-0.5 border-b border-neutral-200 px-2 py-1 dark:border-neutral-800">
                 <button type="button" @click="run('toggleBold')" :class="isActive('bold') && 'bg-neutral-200 dark:bg-neutral-700'" class="{{ $tbBtn }} font-bold" title="{{ __('shelf::shelf.tb_bold') }}">B</button>
                 <button type="button" @click="run('toggleItalic')" :class="isActive('italic') && 'bg-neutral-200 dark:bg-neutral-700'" class="{{ $tbBtn }} italic" title="{{ __('shelf::shelf.tb_italic') }}">I</button>
                 <button type="button" @click="run('toggleStrike')" :class="isActive('strike') && 'bg-neutral-200 dark:bg-neutral-700'" class="{{ $tbBtn }} line-through" title="{{ __('shelf::shelf.tb_strike') }}">S</button>
@@ -201,8 +215,21 @@
             </div>
         @endif
 
-        {{-- Editor mount --}}
-        <div class="js-note-mount min-h-0 flex-1 overflow-y-auto" x-ignore></div>
+        {{-- Editor mount (hidden while the split preview is on) --}}
+        <div class="min-h-0 flex-1 overflow-hidden" x-show="! preview">
+            <div class="js-note-mount h-full overflow-y-auto" x-ignore></div>
+        </div>
+
+        {{-- Split preview: markdown source (left) + rendered HTML (right), with
+             proportional scroll-follow between the two panes. --}}
+        <div x-show="preview" x-cloak class="grid min-h-0 flex-1 grid-cols-2 divide-x divide-neutral-200 dark:divide-neutral-800">
+            <pre x-ref="pvSrc" @scroll="syncScroll('src')"
+                 class="m-0 overflow-auto whitespace-pre-wrap break-words bg-neutral-50 px-4 py-4 font-mono text-xs leading-5 text-neutral-700 dark:bg-neutral-900/40 dark:text-neutral-300"
+                 x-text="previewMd"></pre>
+            <div x-ref="pvOut" @scroll="syncScroll('out')"
+                 class="tiptap markdown overflow-auto px-6 py-4 text-sm"
+                 x-html="previewHtml"></div>
+        </div>
 
         {{-- Slash-command menu --}}
         <template x-teleport="body">

@@ -248,6 +248,66 @@ class ShelfShow extends Component
         $this->touchTree();
     }
 
+    /**
+     * Reorder a node relative to its siblings (drag & drop with an insertion
+     * line). The node lands in $targetParentId (null = root) right BEFORE
+     * $beforeNodeId, or at the end when $beforeNodeId is null. Positions of the
+     * whole target sibling group are re-packed densely so the new order sticks.
+     *
+     * Guards mirror moveNode(): same-board only, and never into the node's own
+     * subtree (which would detach a cycle).
+     */
+    public function reorderNode(int $nodeId, ?int $targetParentId, ?int $beforeNodeId): void
+    {
+        abort_unless($this->canWrite, 403);
+
+        $node = $this->node($nodeId);
+        $target = $targetParentId !== null ? $this->folder($targetParentId) : null;
+
+        if ($target !== null) {
+            for ($cursor = $target; $cursor !== null; $cursor = $cursor->parent) {
+                if ($cursor->id === $node->id) {
+                    return;
+                }
+            }
+        }
+
+        // Siblings of the destination, in current order, without the moved node.
+        $siblings = ShelfNode::where('board_id', $this->board->id)
+            ->where('parent_id', $target?->id)
+            ->whereNull('archived_at')
+            ->where('id', '!=', $node->id)
+            ->orderBy('position')
+            ->orderBy('name')
+            ->get()
+            ->values();
+
+        $index = $beforeNodeId !== null
+            ? $siblings->search(fn (ShelfNode $sibling): bool => $sibling->id === $beforeNodeId)
+            : false;
+
+        $ordered = $siblings->all();
+        array_splice($ordered, $index === false ? count($ordered) : $index, 0, [$node]);
+
+        foreach ($ordered as $position => $sibling) {
+            $attributes = ['position' => $position];
+
+            if ($sibling->id === $node->id) {
+                $attributes['parent_id'] = $target?->id;
+            }
+
+            if ($sibling->position !== $position || ($sibling->id === $node->id && $sibling->parent_id !== $target?->id)) {
+                $sibling->update($attributes);
+            }
+        }
+
+        if ($node->parent_id !== ($target?->id)) {
+            ShelfActivity::log($this->board, 'shelf.node_moved', $node->fresh(), ['to' => $target?->name]);
+        }
+
+        $this->touchTree();
+    }
+
     public function trashNode(int $nodeId): void
     {
         abort_unless($this->canWrite, 403);

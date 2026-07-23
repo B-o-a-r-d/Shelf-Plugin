@@ -50,6 +50,10 @@
         members: [],
         typing: {},
         slash: { open: false, query: '', index: 0, x: 0, y: 0, from: 0 },
+        preview: false,
+        previewMd: '',
+        previewHtml: '',
+        _syncScroll: false,
         _timer: null,
         _whisperAt: 0,
         _server: null,
@@ -396,6 +400,79 @@
             }
             this.status = 'dirty'
             this.save()
+        },
+
+        // --- Split preview & PDF export ---------------------------------------
+
+        // Toggle the read-only split view: markdown source (left) + rendered
+        // HTML (right). Content is snapshotted from the editor at toggle time
+        // (editing happens in the WYSIWYG mode, hidden while previewing).
+        togglePreview() {
+            if (this.preview) {
+                this.preview = false
+
+                return
+            }
+
+            const editor = this.editor()
+            if (! editor) {
+                return
+            }
+
+            this.previewMd = editor.storage.markdown.getMarkdown()
+            this.previewHtml = editor.getHTML()
+            this.preview = true
+        },
+
+        // Proportional scroll linking between the two panes ("follow"), guarded
+        // against the feedback loop the mirrored scroll would otherwise cause.
+        syncScroll(from) {
+            if (this._syncScroll) {
+                return
+            }
+
+            const a = from === 'src' ? this.$refs.pvSrc : this.$refs.pvOut
+            const b = from === 'src' ? this.$refs.pvOut : this.$refs.pvSrc
+            if (! a || ! b) {
+                return
+            }
+
+            const range = a.scrollHeight - a.clientHeight
+            const ratio = range > 0 ? a.scrollTop / range : 0
+
+            this._syncScroll = true
+            b.scrollTop = ratio * (b.scrollHeight - b.clientHeight)
+            requestAnimationFrame(() => { this._syncScroll = false })
+        },
+
+        // Export to PDF with zero infra dependency: render the note's own HTML
+        // in a standalone window and hand off to the browser's print-to-PDF.
+        exportPdf() {
+            const editor = this.editor()
+            if (! editor) {
+                return
+            }
+
+            const title = String(opts.noteName || 'note').replace(/[<>&]/g, '')
+            const body = editor.getHTML()
+            const win = window.open('', '_blank')
+            if (! win) {
+                return
+            }
+
+            win.document.write(
+                '<!doctype html><html><head><meta charset="utf-8"><title>' + title + '</title><style>'
+                + 'body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.6;color:#1c1c1c;max-width:46rem;margin:2rem auto;padding:0 1.25rem;}'
+                + 'h1,h2,h3{font-weight:700;letter-spacing:-.02em;line-height:1.25;}h1{font-size:1.7rem;margin:1.5rem 0 .6rem;}h2{font-size:1.35rem;margin:1.4rem 0 .5rem;}h3{font-size:1.15rem;margin:1.2rem 0 .4rem;}'
+                + 'p{margin:.7rem 0;}a{color:#4f46e5;}ul,ol{padding-left:1.4rem;}li{margin:.25rem 0;}blockquote{border-left:3px solid #e5e7eb;margin:1rem 0;padding:.2rem 0 .2rem 1rem;color:#6b7280;}'
+                + 'code{background:#f4f4f5;padding:.15em .4em;border-radius:.3rem;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.875em;}pre{background:#f4f4f5;padding:1rem;border-radius:.5rem;overflow:auto;}pre code{background:none;padding:0;}'
+                + 'table{border-collapse:collapse;width:100%;margin:1rem 0;}th,td{border:1px solid #e5e7eb;padding:.5rem .75rem;text-align:left;}th{background:#f4f4f5;}img{max-width:100%;}hr{border:none;border-top:1px solid #e5e7eb;margin:1.5rem 0;}'
+                + '@media print{body{margin:0;max-width:none;}}'
+                + '</style></head><body><h1>' + title + '</h1>' + body + '</body></html>',
+            )
+            win.document.close()
+            win.focus()
+            setTimeout(() => { win.print() }, 350)
         },
 
         // --- Toolbar ----------------------------------------------------------

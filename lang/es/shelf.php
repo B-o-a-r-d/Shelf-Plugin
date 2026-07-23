@@ -54,7 +54,9 @@ return [
     'import_confirm' => 'Importar',
     'import_running' => 'Importando…',
     'import_failed' => 'La importación de «:name» falló; el archivo fue omitido.',
-    'export_md' => 'Exportar (.md)',
+    'export_md' => 'Exportar a Markdown (.md)',
+    'export_pdf' => 'Exportar a PDF',
+    'preview_split' => 'Vista dividida (fuente / renderizado)',
 
     'share' => 'Compartir',
     'share_title' => 'Compartir públicamente',

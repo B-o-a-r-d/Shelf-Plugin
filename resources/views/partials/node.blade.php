@@ -5,9 +5,22 @@
 @endphp
 
 <div x-data="{ open: true, over: false }" wire:key="shelf-node-{{ $node->id }}">
+    {{-- Insertion line: drop here to reorder the dragged node BEFORE this one,
+         within this node's parent (Trilium-style between-siblings reorder). --}}
+    @if ($canWrite)
+        <div class="relative -my-0.5 h-1"
+             @dragover.prevent.stop="dragId !== null && dragId !== {{ $node->id }} ? insBefore = {{ $node->id }} : null"
+             @dragleave.stop="insBefore === {{ $node->id }} ? insBefore = null : null"
+             @drop.prevent.stop="if (dragId !== null && dragId !== {{ $node->id }}) { $wire.reorderNode(dragId, {{ $node->parent_id ?? 'null' }}, {{ $node->id }}); } insBefore = null; dragId = null;">
+            <div x-show="insBefore === {{ $node->id }}" x-cloak
+                 class="pointer-events-none absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 rounded bg-indigo-500"
+                 style="margin-left: {{ 6 + $depth * 16 }}px"></div>
+        </div>
+    @endif
     <x-context-menu>
         <x-slot:trigger>
             <div
+                data-shelf-node
                 @class([
                     'group flex items-center gap-1 rounded-lg px-1.5 py-1 text-sm select-none',
                     'bg-indigo-50 text-indigo-800 dark:bg-indigo-500/10 dark:text-indigo-300' => $selectedNodeId === $node->id,
