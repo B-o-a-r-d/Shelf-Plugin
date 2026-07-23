@@ -718,8 +718,13 @@ class ShelfShow extends Component
      * Toggle the public read-only link of a note. Enabling mints a random share
      * token (idempotent); disabling revokes it, so any URL already copied stops
      * resolving. Contribute permission required — same gate as editing.
+     *
+     * Returns the resulting state so the (wire:ignore) share control can update
+     * itself from the promise, without depending on a Livewire DOM patch.
+     *
+     * @return array{shared: bool, url: string|null}
      */
-    public function toggleShare(int $nodeId): void
+    public function toggleShare(int $nodeId): array
     {
         abort_unless($this->canWrite, 403);
 
@@ -732,6 +737,8 @@ class ShelfShow extends Component
         } else {
             $node->enableSharing();
         }
+
+        return ['shared' => $node->isShared(), 'url' => $node->publicUrl()];
     }
 
     // --- Quota ------------------------------------------------------------------

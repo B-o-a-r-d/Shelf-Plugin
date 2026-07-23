@@ -63,6 +63,8 @@ return [
     'share_revoke' => 'Revoke the link',
     'share_copy' => 'Copy',
     'share_copied' => 'Copied',
+    'share_working' => 'Generating the link…',
+    'share_error' => 'The operation failed, please retry.',
     'public_read_only' => 'Note shared as read-only',
 
     'search_placeholder' => 'Search the shelf…',

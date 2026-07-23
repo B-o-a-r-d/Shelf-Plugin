@@ -63,6 +63,8 @@ return [
     'share_revoke' => 'Revocar el enlace',
     'share_copy' => 'Copiar',
     'share_copied' => 'Copiado',
+    'share_working' => 'Generando el enlace…',
+    'share_error' => 'La operación falló, inténtalo de nuevo.',
     'public_read_only' => 'Nota compartida en solo lectura',
 
     'search_placeholder' => 'Buscar en la estantería…',

@@ -59,12 +59,48 @@
                     <span x-show="status === 'saved' && savedAt !== null" x-text="i18n.saved.replace(':time', savedAt ?? '')"></span>
                 </span>
 
-                {{-- Public share: mint / revoke a read-only link and copy it --}}
+                {{-- Public share: Alpine-driven so it works inside this wire:ignore
+                     subtree — toggleShare() returns the new {shared,url}, we read it
+                     off the $wire promise and update locally (no Livewire DOM patch
+                     ever reaches here). --}}
                 @if ($canWrite)
-                    @php($publicUrl = $selectedNode->publicUrl())
-                    <div class="relative" x-data="{ open: false, copied: false }" @keydown.escape.window="open = false">
+                    <div class="relative"
+                         x-data="{
+                             open: false,
+                             busy: false,
+                             copied: false,
+                             error: false,
+                             shared: @js($selectedNode->isShared()),
+                             url: @js($selectedNode->publicUrl()),
+                             async toggle() {
+                                 if (this.busy) { return; }
+                                 this.busy = true; this.error = false; this.copied = false;
+                                 try {
+                                     const r = await $wire.toggleShare({{ $selectedNode->id }});
+                                     this.shared = r.shared;
+                                     this.url = r.url;
+                                 } catch (e) {
+                                     this.error = true;
+                                 } finally {
+                                     this.busy = false;
+                                 }
+                             },
+                             async copy() {
+                                 if (! this.url) { return; }
+                                 try {
+                                     await navigator.clipboard.writeText(this.url);
+                                 } catch (e) {
+                                     const i = this.$refs.shareInput;
+                                     if (i) { i.focus(); i.select(); document.execCommand('copy'); }
+                                 }
+                                 this.copied = true;
+                                 setTimeout(() => this.copied = false, 1500);
+                             },
+                         }"
+                         @keydown.escape.window="open = false">
                         <button type="button" @click="open = ! open"
-                                class="inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs {{ $selectedNode->isShared() ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300' : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800' }}">
+                                :class="shared ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300' : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800'"
+                                class="inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs">
                             <x-phosphor-share-network class="h-3.5 w-3.5" /> {{ __('shelf::shelf.share') }}
                         </button>
 
@@ -74,27 +110,34 @@
                             <p class="text-xs font-semibold text-neutral-700 dark:text-neutral-200">{{ __('shelf::shelf.share_title') }}</p>
                             <p class="mt-0.5 text-[11px] text-neutral-500 dark:text-neutral-400">{{ __('shelf::shelf.share_hint') }}</p>
 
-                            @if ($selectedNode->isShared())
-                                <div class="mt-2.5 flex items-center gap-1.5" x-data="{ url: @js($publicUrl) }">
-                                    <input type="text" readonly :value="url" @focus="$el.select()"
+                            {{-- Busy indicator (visibility on the backend round-trip) --}}
+                            <div x-show="busy" x-cloak class="mt-2.5 flex items-center gap-2 text-[11px] text-neutral-500 dark:text-neutral-400">
+                                <x-phosphor-circle-notch class="h-3.5 w-3.5 animate-spin" /> {{ __('shelf::shelf.share_working') }}
+                            </div>
+                            <p x-show="error" x-cloak class="mt-2.5 text-[11px] text-red-600 dark:text-red-400">{{ __('shelf::shelf.share_error') }}</p>
+
+                            {{-- Shared state: URL + copy + revoke --}}
+                            <div x-show="! busy && shared" x-cloak>
+                                <div class="mt-2.5 flex items-center gap-1.5">
+                                    <input type="text" readonly :value="url" x-ref="shareInput" @focus="$el.select()"
                                            class="min-w-0 flex-1 truncate rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1.5 text-[11px] text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
-                                    <button type="button"
-                                            @click="navigator.clipboard.writeText(url); copied = true; setTimeout(() => copied = false, 1500)"
+                                    <button type="button" @click="copy()"
                                             class="inline-flex shrink-0 items-center gap-1 rounded-lg bg-indigo-600 px-2 py-1.5 text-[11px] font-medium text-white hover:bg-indigo-500">
-                                        <template x-if="! copied"><span class="inline-flex items-center gap-1"><x-phosphor-copy class="h-3.5 w-3.5" /> {{ __('shelf::shelf.share_copy') }}</span></template>
-                                        <template x-if="copied"><span class="inline-flex items-center gap-1"><x-phosphor-check class="h-3.5 w-3.5" /> {{ __('shelf::shelf.share_copied') }}</span></template>
+                                        <span x-show="! copied" class="inline-flex items-center gap-1"><x-phosphor-copy class="h-3.5 w-3.5" /> {{ __('shelf::shelf.share_copy') }}</span>
+                                        <span x-show="copied" x-cloak class="inline-flex items-center gap-1"><x-phosphor-check class="h-3.5 w-3.5" /> {{ __('shelf::shelf.share_copied') }}</span>
                                     </button>
                                 </div>
-                                <button type="button" wire:click="toggleShare({{ $selectedNode->id }})"
+                                <button type="button" @click="toggle()"
                                         class="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-200 px-2 py-1.5 text-[11px] font-medium text-red-600 hover:bg-red-50 dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-500/10">
                                     <x-phosphor-link-break class="h-3.5 w-3.5" /> {{ __('shelf::shelf.share_revoke') }}
                                 </button>
-                            @else
-                                <button type="button" wire:click="toggleShare({{ $selectedNode->id }})"
-                                        class="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-2 py-1.5 text-[11px] font-medium text-white hover:bg-indigo-500">
-                                    <x-phosphor-link class="h-3.5 w-3.5" /> {{ __('shelf::shelf.share_enable') }}
-                                </button>
-                            @endif
+                            </div>
+
+                            {{-- Not shared yet: enable --}}
+                            <button type="button" x-show="! busy && ! shared" @click="toggle()"
+                                    class="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-2 py-1.5 text-[11px] font-medium text-white hover:bg-indigo-500">
+                                <x-phosphor-link class="h-3.5 w-3.5" /> {{ __('shelf::shelf.share_enable') }}
+                            </button>
                         </div>
                     </div>
                 @endif
