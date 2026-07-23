@@ -14,6 +14,10 @@
          x-data="shelfNoteEditor(@js([
              'nodeId' => $selectedNode->id,
              'noteName' => $selectedNode->name,
+             'boardId' => $board->public_id,
+             'notePublicId' => $selectedNode->public_id,
+             'uploadUrl' => route('shelf.media.upload'),
+             'csrf' => csrf_token(),
              'markdown' => (string) $note?->markdown,
              'version' => $note?->version ?? 0,
              'canWrite' => $canWrite,
@@ -198,6 +202,7 @@
                 <button type="button" @click="run('toggleCodeBlock')" :class="isActive('codeBlock') && 'bg-neutral-200 dark:bg-neutral-700'" class="{{ $tbBtn }}" title="{{ __('shelf::shelf.slash_code') }}"><x-phosphor-code class="h-4 w-4" /></button>
                 <button type="button" @click="toggleLink()" :class="isActive('link') && 'bg-neutral-200 dark:bg-neutral-700'" class="{{ $tbBtn }}" title="{{ __('shelf::shelf.tb_link') }}"><x-phosphor-link class="h-4 w-4" /></button>
                 <button type="button" @click="run('insertTable', { rows: 3, cols: 3, withHeaderRow: true })" :class="isActive('table') && 'bg-neutral-200 dark:bg-neutral-700'" class="{{ $tbBtn }}" title="{{ __('shelf::shelf.slash_table') }}"><x-phosphor-table class="h-4 w-4" /></button>
+                <button type="button" @click="pickImage()" class="{{ $tbBtn }}" title="{{ __('shelf::shelf.tb_image') }}"><x-phosphor-image class="h-4 w-4" /></button>
 
                 {{-- Table controls, only while the caret is inside a table --}}
                 <template x-if="isActive('table')">

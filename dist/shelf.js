@@ -17,11 +17,14 @@
     // register() would then no-op and the tables extension would be missing.
     // Registering inside init(), after boardTiptap.load() resolves, guarantees
     // the registry is present; register() is idempotent so re-mounts are free.
-    const registerShelfExtensions = () => window.boardTiptap.register('shelf', ({ tables }) => [
+    const registerShelfExtensions = () => window.boardTiptap.register('shelf', ({ tables, image }) => [
         tables.Table.configure({ resizable: false }),
         tables.TableRow,
         tables.TableHeader,
         tables.TableCell,
+        // Inline images embedded in the markdown as ![](url); base64 disabled —
+        // images are uploaded and referenced by URL, never inlined into content.
+        image.Image.configure({ inline: false, allowBase64: false }),
     ])
 
     const COLORS = ['#f97316', '#8b5cf6', '#06b6d4', '#10b981', '#ef4444', '#eab308', '#ec4899', '#3b82f6']
@@ -111,6 +114,8 @@
                         class: 'tiptap markdown mx-auto min-h-full max-w-3xl px-6 py-4 text-sm focus:outline-none',
                     },
                     handleKeyDown: (view, event) => this.onKeyDown(event),
+                    handlePaste: (view, event) => this.onPasteImage(event),
+                    handleDrop: (view, event, slice, moved) => this.onDropImage(view, event, moved),
                 },
                 onUpdate: () => this.onUpdate(),
             })
@@ -405,6 +410,104 @@
             }
             this.status = 'dirty'
             this.save()
+        },
+
+        // --- Inline images ----------------------------------------------------
+
+        imageFilesFrom(list) {
+            return Array.from(list || []).filter((f) => f.type && f.type.startsWith('image/'))
+        },
+
+        onPasteImage(event) {
+            if (! this.canWrite || ! opts.uploadUrl) {
+                return false
+            }
+
+            const files = this.imageFilesFrom(event.clipboardData?.files)
+            if (files.length === 0) {
+                return false
+            }
+
+            event.preventDefault()
+            files.forEach((file) => this.uploadAndInsert(file, null))
+
+            return true
+        },
+
+        onDropImage(view, event, moved) {
+            if (moved || ! this.canWrite || ! opts.uploadUrl) {
+                return false
+            }
+
+            const files = this.imageFilesFrom(event.dataTransfer?.files)
+            if (files.length === 0) {
+                return false
+            }
+
+            event.preventDefault()
+            const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ?? null
+            files.forEach((file) => this.uploadAndInsert(file, pos))
+
+            return true
+        },
+
+        pickImage() {
+            if (! this.canWrite || ! opts.uploadUrl) {
+                return
+            }
+
+            const input = document.createElement('input')
+            input.type = 'file'
+            input.accept = 'image/*'
+            input.onchange = () => {
+                if (input.files?.[0]) {
+                    this.uploadAndInsert(input.files[0], null)
+                }
+            }
+            input.click()
+        },
+
+        async uploadAndInsert(file, pos) {
+            const url = await this.uploadImage(file)
+            const editor = this.editor()
+            if (! url || ! editor) {
+                return
+            }
+
+            if (pos !== null && pos !== undefined) {
+                editor.chain().focus().insertContentAt(pos, { type: 'image', attrs: { src: url } }).run()
+            } else {
+                editor.chain().focus().setImage({ src: url }).run()
+            }
+        },
+
+        async uploadImage(file) {
+            const fd = new FormData()
+            fd.append('file', file)
+            fd.append('board', opts.boardId)
+            if (opts.notePublicId) {
+                fd.append('note', opts.notePublicId)
+            }
+
+            try {
+                const res = await fetch(opts.uploadUrl, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': opts.csrf, Accept: 'application/json' },
+                    body: fd,
+                })
+
+                if (! res.ok) {
+                    if (res.status === 422) {
+                        this.status = 'quota'
+                    }
+
+                    return null
+                }
+
+                return (await res.json()).url ?? null
+            } catch (e) {
+                return null
+            }
         },
 
         // --- Split preview & PDF export ---------------------------------------

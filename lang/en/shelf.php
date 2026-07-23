@@ -119,6 +119,7 @@ return [
     'tb_italic' => 'Italic',
     'tb_strike' => 'Strikethrough',
     'tb_link' => 'Link',
+    'tb_image' => 'Insert an image',
 
     'trash' => 'Trash',
     'trash_hint' => 'Trashed items are permanently deleted after :days days. Restoring an item restores its whole branch.',

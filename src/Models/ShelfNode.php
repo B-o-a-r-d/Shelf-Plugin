@@ -215,7 +215,8 @@ class ShelfNode extends Model
      */
     public static function usedBytes(Board $board): int
     {
-        return (int) static::where('board_id', $board->id)->sum('size');
+        return (int) static::where('board_id', $board->id)->sum('size')
+            + ShelfMedia::usedBytes($board);
     }
 
     /**

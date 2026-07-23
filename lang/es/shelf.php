@@ -119,6 +119,7 @@ return [
     'tb_italic' => 'Cursiva',
     'tb_strike' => 'Tachado',
     'tb_link' => 'Enlace',
+    'tb_image' => 'Insertar una imagen',
 
     'trash' => 'Papelera',
     'trash_hint' => 'Los elementos de la papelera se eliminan definitivamente tras :days días. Restaurar un elemento restaura toda su rama.',

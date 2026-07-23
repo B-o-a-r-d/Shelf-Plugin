@@ -119,6 +119,7 @@ return [
     'tb_italic' => 'Italique',
     'tb_strike' => 'Barré',
     'tb_link' => 'Lien',
+    'tb_image' => 'Insérer une image',
 
     'trash' => 'Corbeille',
     'trash_hint' => 'Les éléments de la corbeille sont supprimés définitivement après :days jours. Restaurer un élément restaure toute sa branche.',

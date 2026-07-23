@@ -7,6 +7,8 @@ use Board\PluginSdk\Contracts\Plugin;
 use Board\PluginSdk\PluginServiceProvider;
 use Board\PluginShelf\Http\ShelfExportController;
 use Board\PluginShelf\Http\ShelfFileController;
+use Board\PluginShelf\Http\ShelfMediaController;
+use Board\PluginShelf\Http\ShelfMediaUploadController;
 use Board\PluginShelf\Http\ShelfPublicNoteController;
 use Board\PluginShelf\Livewire\ShelfShow;
 use Board\PluginShelf\Models\ShelfNode;
@@ -47,6 +49,17 @@ class ShelfServiceProvider extends PluginServiceProvider
         Route::middleware(['web'])
             ->name('shelf.public')
             ->get('/shelf/public/{token}', ShelfPublicNoteController::class);
+
+        // Inline note images: upload (contribute) + serve. The serve route stays
+        // auth-free (web only) so a publicly shared note's images resolve for
+        // anonymous visitors; the controller enforces access per-image.
+        Route::middleware(['web', 'auth'])
+            ->name('shelf.media.upload')
+            ->post('/shelf/media/upload', ShelfMediaUploadController::class);
+
+        Route::middleware(['web'])
+            ->name('shelf.media')
+            ->get('/shelf/media/{media:public_id}', ShelfMediaController::class);
 
         // Presence channel of a note: who currently has it open. Authorized by
         // the host's BoardPolicy (view) on the node's board; the payload feeds
